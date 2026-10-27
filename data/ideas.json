@@ -1,0 +1,8 @@
+[
+  { "id": 1, "idea": "Integrate a real-time clock in the sidebar", "category": "UI" },
+  { "id": 2, "idea": "Add a 'Quick-Launch' command bar (Ctrl+K)", "category": "Feature" },
+  { "id": 3, "idea": "Agent-Driven Automation: 'Run Agent' buttons", "category": "Agentic" },
+  { "id": 4, "idea": "Dynamic Project Folders for better organization", "category": "Structure" },
+  { "id": 5, "idea": "Interactive Task Management (Edit/Delete tasks)", "category": "Feature" },
+  { "id": 6, "idea": "Knowledge Base: Integrated Doc Viewer for /docs", "category": "Knowledge" }
+]

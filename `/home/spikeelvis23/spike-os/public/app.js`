@@ -1,0 +1,729 @@
+// ==========================================================================
+// SPIKE-OS: Frontend Controller
+// Zero external dependencies. Modern Vanilla JavaScript.
+// ==========================================================================
+
+let currentTab = 'sprints';
+let audioEnabled = true;
+let audioCtx = null;
+
+// ---------- Audio Synthesis Engine (Native Web Audio) ----------
+
+function playSound(type) {
+  if (!audioEnabled) return;
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    const now = audioCtx.currentTime;
+
+    if (type === 'click') {
+      osc.frequency.setValueAtTime(800, now);
+      osc.frequency.exponentialRampToValueAtTime(400, now + 0.04);
+      gain.gain.setValueAtTime(0.04, now);
+      gain.gain.linearRampToValueAtTime(0.01, now + 0.04);
+      osc.start(now);
+      osc.stop(now + 0.04);
+    } else if (type === 'action') {
+      osc.frequency.setValueAtTime(440, now);
+      osc.frequency.exponentialRampToValueAtTime(880, now + 0.08);
+      gain.gain.setValueAtTime(0.05, now);
+      gain.gain.linearRampToValueAtTime(0.01, now + 0.08);
+      osc.start(now);
+      osc.stop(now + 0.08);
+    } else if (type === 'terminal') {
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(320, now);
+      gain.gain.setValueAtTime(0.03, now);
+      gain.gain.linearRampToValueAtTime(0.001, now + 0.05);
+      osc.start(now);
+      osc.stop(now + 0.05);
+    }
+  } catch (e) {
+    // Audio context may require explicit user gesture
+  }
+}
+
+function toggleAudio() {
+  audioEnabled = !audioEnabled;
+  document.getElementById('sound-btn').textContent = audioEnabled ? '🔊 SFX: ON' : '🔇 SFX: OFF';
+}
+
+// ---------- Tab Navigation ----------
+
+function showTab(tabId) {
+  playSound('click');
+  currentTab = tabId;
+
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+
+  const activeSection = document.getElementById(tabId);
+  const activeBtn = document.getElementById('btn-' + tabId);
+
+  if (activeSection) activeSection.classList.add('active');
+  if (activeBtn) activeBtn.classList.add('active');
+
+  const titleMap = {
+    sprints: 'WORKSPACE // SPRINTS & ROADMAP',
+    agents: 'FLEET // AUTONOMOUS WORKERS',
+    brain: 'NEURAL VAULT // KNOWLEDGE TOPOLOGY',
+    ideas: 'IDEATION // INCUBATOR STREAM',
+    links: 'REPOSITORIES // ESSENTIAL BOOKMARKS',
+    chat: 'TERMINAL // CLAUDE-CODE INTERFACE'
+  };
+  document.getElementById('current-view-title').textContent = titleMap[tabId] || 'WORKSPACE';
+
+  if (tabId === 'sprints') renderSprints();
+  if (tabId === 'agents') renderAgents();
+  if (tabId === 'links') renderLinks();
+  if (tabId === 'ideas') renderIdeas();
+  if (tabId === 'brain') {
+    renderVault();
+    initBrain3D();
+  }
+}
+
+// ---------- Sprint Board (Interactive Kanban) ----------
+
+async function renderSprints() {
+  try {
+    const res = await fetch('/api/data/sprints');
+    const tasks = await res.json();
+
+    document.getElementById('count-sprints').textContent = tasks.length;
+
+    const cols = {
+      backlog: document.getElementById('col-backlog'),
+      todo: document.getElementById('col-todo'),
+      doing: document.getElementById('col-doing'),
+      done: document.getElementById('col-done')
+    };
+
+    Object.values(cols).forEach(col => { if (col) col.innerHTML = ''; });
+
+    const counts = { backlog: 0, todo: 0, doing: 0, done: 0 };
+
+    tasks.forEach(task => {
+      const status = task.status || 'todo';
+      if (counts[status] !== undefined) counts[status]++;
+
+      const card = document.createElement('div');
+      card.className = 'task-card';
+
+      const meta = document.createElement('div');
+      meta.className = 'task-meta';
+
+      const tag = document.createElement('span');
+      tag.className = 'project-tag';
+      tag.textContent = task.project || 'spike-os';
+
+      const idSpan = document.createElement('span');
+      idSpan.className = 'task-id';
+      idSpan.textContent = `#${task.id}`;
+
+      meta.appendChild(tag);
+      meta.appendChild(idSpan);
+
+      const title = document.createElement('div');
+      title.className = 'task-title';
+      title.textContent = task.title;
+
+      const controls = document.createElement('div');
+      controls.className = 'task-controls';
+
+      // Move buttons depending on current status
+      const nextStatusMap = {
+        backlog: ['todo'],
+        todo: ['doing'],
+        doing: ['done'],
+        done: ['todo']
+      };
+
+      (nextStatusMap[status] || []).forEach(next => {
+        const moveBtn = document.createElement('button');
+        moveBtn.className = 'btn-move';
+        moveBtn.textContent = `→ ${next}`;
+        moveBtn.onclick = (e) => {
+          e.stopPropagation();
+          updateTaskStatus(task.id, next);
+        };
+        controls.appendChild(moveBtn);
+      });
+
+      card.appendChild(meta);
+      card.appendChild(title);
+      card.appendChild(controls);
+
+      if (cols[status]) cols[status].appendChild(card);
+    });
+
+    // Update column counters
+    document.getElementById('badge-backlog').textContent = counts.backlog;
+    document.getElementById('badge-todo').textContent = counts.todo;
+    document.getElementById('badge-doing').textContent = counts.doing;
+    document.getElementById('badge-done').textContent = counts.done;
+  } catch (err) {
+    console.error('Failed to load sprints:', err);
+  }
+}
+
+async function updateTaskStatus(taskId, newStatus) {
+  playSound('action');
+  try {
+    const res = await fetch('/api/data/sprints');
+    const tasks = await res.json();
+    const task = tasks.find(t => t.id === taskId);
+    if (task) {
+      task.status = newStatus;
+      await fetch('/api/data/sprints', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tasks)
+      });
+      renderSprints();
+    }
+  } catch (err) {
+    console.error('Failed updating task:', err);
+  }
+}
+
+async function showNewTaskModal() {
+  const title = prompt('Enter new task description:');
+  if (!title) return;
+  const project = prompt('Enter project name (default: spike-os):') || 'spike-os';
+
+  try {
+    const res = await fetch('/api/data/sprints');
+    const tasks = await res.json();
+    const nextId = tasks.reduce((max, t) => Math.max(max, t.id || 0), 0) + 1;
+
+    tasks.push({ id: nextId, title, status: 'todo', project });
+
+    await fetch('/api/data/sprints', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(tasks)
+    });
+    playSound('action');
+    renderSprints();
+  } catch (err) {
+    console.error('Failed to save task:', err);
+  }
+}
+
+// ---------- Agents View ----------
+
+async function renderAgents() {
+  try {
+    const res = await fetch('/api/data/agents');
+    const agents = await res.json();
+
+    document.getElementById('count-agents').textContent = agents.length;
+    const container = document.getElementById('agent-list');
+    container.innerHTML = '';
+
+    agents.forEach(agent => {
+      const card = document.createElement('div');
+      card.className = 'agent-card';
+
+      const header = document.createElement('div');
+      header.className = 'agent-header';
+
+      const avatar = document.createElement('div');
+      avatar.className = 'agent-avatar';
+      avatar.textContent = agent.icon || '🤖';
+
+      const info = document.createElement('div');
+      info.className = 'agent-info';
+
+      const name = document.createElement('h3');
+      name.textContent = agent.name;
+
+      const role = document.createElement('div');
+      role.className = 'agent-role';
+      role.textContent = agent.role;
+
+      info.appendChild(name);
+      info.appendChild(role);
+      header.appendChild(avatar);
+      header.appendChild(info);
+
+      const footer = document.createElement('div');
+      footer.className = 'agent-footer';
+
+      const pill = document.createElement('span');
+      pill.className = `status-pill ${agent.status}`;
+      pill.textContent = agent.status;
+
+      const runBtn = document.createElement('button');
+      runBtn.className = 'agent-action-btn';
+      runBtn.textContent = 'Dispatch Task';
+      runBtn.onclick = () => {
+        showTab('chat');
+        const input = document.getElementById('chat-input');
+        input.value = `@${agent.name} `;
+        input.focus();
+      };
+
+      footer.appendChild(pill);
+      footer.appendChild(runBtn);
+
+      card.appendChild(header);
+      card.appendChild(footer);
+      container.appendChild(card);
+    });
+  } catch (err) {
+    console.error('Failed loading agents:', err);
+  }
+}
+
+// ---------- Ideas & Links ----------
+
+async function renderIdeas() {
+  try {
+    const res = await fetch('/api/data/ideas');
+    const ideas = await res.json();
+
+    document.getElementById('count-ideas').textContent = ideas.length;
+    const container = document.getElementById('ideas-list');
+    container.innerHTML = '';
+
+    ideas.forEach(item => {
+      const card = document.createElement('div');
+      card.className = 'idea-card';
+
+      const cat = document.createElement('span');
+      cat.className = 'idea-category';
+      cat.textContent = item.category || 'IDEA';
+
+      const body = document.createElement('p');
+      body.textContent = item.idea;
+
+      card.appendChild(cat);
+      card.appendChild(body);
+      container.appendChild(card);
+    });
+  } catch (err) {
+    console.error('Failed loading ideas:', err);
+  }
+}
+
+async function renderLinks() {
+  try {
+    const res = await fetch('/api/data/links');
+    const links = await res.json();
+
+    const container = document.getElementById('links-list');
+    container.innerHTML = '';
+
+    links.forEach(l => {
+      const a = document.createElement('a');
+      a.className = 'link-card';
+      a.href = l.url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+
+      const title = document.createElement('span');
+      title.textContent = l.title;
+
+      const arrow = document.createElement('span');
+      arrow.textContent = '↗';
+      arrow.style.color = 'var(--accent)';
+
+      a.appendChild(title);
+      a.appendChild(arrow);
+      container.appendChild(a);
+    });
+  } catch (err) {
+    console.error('Failed loading links:', err);
+  }
+}
+
+// ---------- Vault & Markdown Documents ----------
+
+async function renderVault() {
+  try {
+    const res = await fetch('/api/vault');
+    const files = await res.json();
+    const list = document.getElementById('vault-list');
+    list.innerHTML = '';
+
+    files.forEach(file => {
+      const div = document.createElement('div');
+      div.className = 'vault-item';
+      div.textContent = `📄 ${file}`;
+      div.onclick = () => loadNote(file);
+      list.appendChild(div);
+    });
+  } catch (err) {
+    console.error('Failed reading vault:', err);
+  }
+}
+
+async function loadNote(fileName) {
+  playSound('action');
+  try {
+    const res = await fetch(`/api/vault/${encodeURIComponent(fileName)}`);
+    const data = await res.json();
+
+    const contentDiv = document.getElementById('overlay-body');
+    contentDiv.innerHTML = '';
+
+    const h2 = document.createElement('h2');
+    h2.textContent = data.name;
+    contentDiv.appendChild(h2);
+
+    const bodyDiv = document.createElement('div');
+    bodyDiv.className = 'md-body';
+
+    // Parse [[backlinks]] and #tags safely using DOM elements
+    const parts = data.text.split(/(\[\[.*?\]\]|#\w+)/g);
+    parts.forEach(part => {
+      if (part.startsWith('[[') && part.endsWith(']]')) {
+        const linkTarget = part.slice(2, -2);
+        const a = document.createElement('span');
+        a.textContent = linkTarget;
+        a.style.color = 'var(--accent)';
+        a.style.cursor = 'pointer';
+        a.style.textDecoration = 'underline';
+        a.onclick = () => loadNote(`${linkTarget}.md`);
+        bodyDiv.appendChild(a);
+      } else if (part.startsWith('#') && part.length > 1) {
+        const tag = document.createElement('span');
+        tag.textContent = part;
+        tag.style.color = 'var(--accent-purple)';
+        tag.style.fontWeight = 'bold';
+        bodyDiv.appendChild(tag);
+      } else {
+        bodyDiv.appendChild(document.createTextNode(part));
+      }
+    });
+
+    contentDiv.appendChild(bodyDiv);
+
+    // Render Backlinks
+    if (data.backlinks && data.backlinks.length > 0) {
+      const blBox = document.createElement('div');
+      blBox.className = 'backlinks-box';
+      const blTitle = document.createElement('h4');
+      blTitle.textContent = 'CONNECTED BACKLINKS';
+      blBox.appendChild(blTitle);
+
+      data.backlinks.forEach(bl => {
+        const tag = document.createElement('div');
+        tag.className = 'vault-item';
+        tag.textContent = `← ${bl}`;
+        tag.onclick = () => loadNote(bl);
+        blBox.appendChild(tag);
+      });
+      contentDiv.appendChild(blBox);
+    }
+
+    document.getElementById('note-overlay').style.display = 'flex';
+  } catch (err) {
+    console.error('Failed to load note:', err);
+  }
+}
+
+function closeNoteOverlay() {
+  document.getElementById('note-overlay').style.display = 'none';
+}
+
+async function saveCurrentNote() {
+  const title = document.getElementById('note-title').value.trim();
+  const text = document.getElementById('note-text').value.trim();
+  if (!title || !text) return alert('Document title and body required.');
+
+  try {
+    const res = await fetch('/api/save-note', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, text })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      document.getElementById('note-title').value = '';
+      document.getElementById('note-text').value = '';
+      playSound('action');
+      renderVault();
+    }
+  } catch (err) {
+    console.error('Failed saving note:', err);
+  }
+}
+
+// ---------- 3D Brain Topology (Three.js) ----------
+
+let brainScene, brainCamera, brainRenderer, brainGroup;
+let brainNodes = [];
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+async function initBrain3D() {
+  const container = document.getElementById('brain-3d-container');
+  if (!container || brainScene) return;
+
+  brainScene = new THREE.Scene();
+  brainCamera = new THREE.PerspectiveCamera(65, container.clientWidth / container.clientHeight, 0.1, 1000);
+  brainCamera.position.z = 18;
+
+  brainRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  brainRenderer.setSize(container.clientWidth, container.clientHeight);
+  brainRenderer.setPixelRatio(window.devicePixelRatio);
+  container.appendChild(brainRenderer.domElement);
+
+  brainGroup = new THREE.Group();
+  brainScene.add(brainGroup);
+
+  // Ambient particles
+  const particleGeo = new THREE.BufferGeometry();
+  const particleCount = 200;
+  const posArray = new Float32Array(particleCount * 3);
+  for (let i = 0; i < particleCount * 3; i++) {
+    posArray[i] = (Math.random() - 0.5) * 30;
+  }
+  particleGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+  const particleMat = new THREE.PointsMaterial({ size: 0.04, color: 0x38bdf8, transparent: true, opacity: 0.4 });
+  const particles = new THREE.Points(particleGeo, particleMat);
+  brainScene.add(particles);
+
+  try {
+    const res = await fetch('/api/file-tree');
+    const tree = await res.json();
+
+    const flat = [];
+    const traverse = (node, depth = 0, pId = null) => {
+      const id = flat.length;
+      flat.push({ ...node, id, depth, pId });
+      if (node.children) node.children.forEach(c => traverse(c, depth + 1, id));
+    };
+    traverse(tree);
+
+    flat.forEach((item, idx) => {
+      const isFolder = item.type === 'folder';
+      const geometry = new THREE.SphereGeometry(isFolder ? 0.35 : 0.2, 16, 16);
+      const material = new THREE.MeshBasicMaterial({
+        color: isFolder ? 0x00f2fe : 0x8b5cf6,
+        wireframe: isFolder
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+
+      const phi = Math.acos(-1 + (2 * idx) / flat.length);
+      const theta = Math.sqrt(flat.length * Math.PI) * phi;
+      const radius = 6 + item.depth * 1.5;
+
+      mesh.position.set(
+        radius * Math.cos(theta) * Math.sin(phi),
+        radius * Math.sin(theta) * Math.sin(phi),
+        radius * Math.cos(phi)
+      );
+
+      mesh.userData = { name: item.name, path: item.path, type: item.type };
+      brainGroup.add(mesh);
+      brainNodes.push(mesh);
+    });
+  } catch (err) {
+    console.warn('Could not build 3D nodes:', err);
+  }
+
+  // Mouse move raycasting
+  const tooltip = document.getElementById('brain-tooltip');
+  container.addEventListener('mousemove', (e) => {
+    const rect = container.getBoundingClientRect();
+    mouse.x = ((e.clientX - rect.left) / container.clientWidth) * 2 - 1;
+    mouse.y = -((e.clientY - rect.top) / container.clientHeight) * 2 + 1;
+  });
+
+  container.addEventListener('click', () => {
+    raycaster.setFromCamera(mouse, brainCamera);
+    const hits = raycaster.intersectObjects(brainNodes);
+    if (hits.length > 0) {
+      const hit = hits[0].object;
+      if (hit.userData.name.endsWith('.md')) {
+        loadNote(hit.userData.name);
+      }
+    }
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    brainGroup.rotation.y += 0.0015;
+    brainGroup.rotation.x += 0.0008;
+
+    raycaster.setFromCamera(mouse, brainCamera);
+    const intersects = raycaster.intersectObjects(brainNodes);
+
+    brainNodes.forEach(n => n.scale.set(1, 1, 1));
+
+    if (intersects.length > 0) {
+      const hit = intersects[0].object;
+      hit.scale.set(1.6, 1.6, 1.6);
+      tooltip.style.display = 'block';
+      tooltip.textContent = hit.userData.name;
+    } else {
+      tooltip.style.display = 'none';
+    }
+
+    brainRenderer.render(brainScene, brainCamera);
+  }
+  animate();
+}
+
+// ---------- Claude Terminal / Chat ----------
+
+async function sendChat() {
+  const input = document.getElementById('chat-input');
+  const windowEl = document.getElementById('chat-window');
+  const prompt = input.value.trim();
+  if (!prompt) return;
+
+  playSound('terminal');
+
+  // User Message
+  const userDiv = document.createElement('div');
+  userDiv.className = 'chat-msg user';
+  const uAuthor = document.createElement('span');
+  uAuthor.className = 'msg-author';
+  uAuthor.textContent = 'YOU';
+  const uBody = document.createElement('span');
+  uBody.className = 'msg-body';
+  uBody.textContent = prompt;
+  userDiv.appendChild(uAuthor);
+  userDiv.appendChild(uBody);
+  windowEl.appendChild(userDiv);
+
+  input.value = '';
+  windowEl.scrollTop = windowEl.scrollHeight;
+
+  // Loading state
+  const loadDiv = document.createElement('div');
+  loadDiv.className = 'chat-msg system';
+  const sAuthor = document.createElement('span');
+  sAuthor.className = 'msg-author';
+  sAuthor.textContent = 'CLAUDE-DAEMON';
+  const sBody = document.createElement('span');
+  sBody.className = 'msg-body';
+  sBody.textContent = 'Synthesizing response...';
+  loadDiv.appendChild(sAuthor);
+  loadDiv.appendChild(sBody);
+  windowEl.appendChild(loadDiv);
+
+  try {
+    const res = await fetch('/api/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt })
+    });
+    const data = await res.json();
+    playSound('action');
+
+    loadDiv.remove();
+
+    const osDiv = document.createElement('div');
+    osDiv.className = 'chat-msg os';
+    const oAuthor = document.createElement('span');
+    oAuthor.className = 'msg-author';
+    oAuthor.textContent = 'SPIKE//OS';
+    const oBody = document.createElement('span');
+    oBody.className = 'msg-body';
+    oBody.textContent = data.answer || 'Execution finished without output.';
+    osDiv.appendChild(oAuthor);
+    osDiv.appendChild(oBody);
+    windowEl.appendChild(osDiv);
+  } catch (err) {
+    loadDiv.remove();
+    const errDiv = document.createElement('div');
+    errDiv.className = 'chat-msg system';
+    errDiv.innerHTML = '<span class="msg-author" style="color:var(--accent-red)">ERROR</span><span class="msg-body">Failed to communicate with Claude runner. Check server logs.</span>';
+    windowEl.appendChild(errDiv);
+  }
+  windowEl.scrollTop = windowEl.scrollHeight;
+}
+
+function handleChatKey(e) {
+  if (e.key === 'Enter') sendChat();
+}
+
+function clearChat() {
+  document.getElementById('chat-window').innerHTML = '';
+}
+
+// ---------- Command Palette & Global Search ----------
+
+function openCmdPalette() {
+  const overlay = document.getElementById('command-overlay');
+  const input = document.getElementById('command-input');
+  overlay.style.display = 'flex';
+  input.focus();
+}
+
+function closeCmdPalette() {
+  document.getElementById('command-overlay').style.display = 'none';
+  document.getElementById('command-input').value = '';
+}
+
+async function doSearch() {
+  const query = document.getElementById('global-search').value.trim();
+  const resultsDiv = document.getElementById('search-results');
+
+  if (query.length < 2) {
+    resultsDiv.style.display = 'none';
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+    const results = await res.json();
+
+    resultsDiv.innerHTML = '';
+    if (results.length > 0) {
+      resultsDiv.style.display = 'block';
+      results.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'vault-item';
+        row.textContent = `🔍 ${item.name}`;
+        row.onclick = () => {
+          showTab('brain');
+          loadNote(item.name);
+          resultsDiv.style.display = 'none';
+        };
+        resultsDiv.appendChild(row);
+      });
+    } else {
+      resultsDiv.style.display = 'none';
+    }
+  } catch (err) {
+    console.error('Search error:', err);
+  }
+}
+
+// ---------- OS Initialization ----------
+
+function initOS() {
+  showTab('sprints');
+
+  // Clock HUD
+  setInterval(() => {
+    const d = new Date();
+    document.getElementById('clock-display').textContent = d.toTimeString().split(' ')[0];
+  }, 1000);
+
+  // Global Keyboard Shortcuts
+  window.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      e.preventDefault();
+      const overlay = document.getElementById('command-overlay');
+      if (overlay.style.display === 'none') openCmdPalette();
+      else closeCmdPalette();
+    }
+    if (e.key === 'Escape') {
+      closeCmdPalette();
+    }
+  });
+}

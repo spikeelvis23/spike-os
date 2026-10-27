@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SPIKE-OS // AGENTIC WORKSPACE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
+</head>
+<body onload="initOS()">
+  <!-- Ambient Glow Background -->
+  <div class="ambient-glow"></div>
+  <div id="brain-tooltip"></div>
+
+  <!-- Command Palette Overlay (Cmd+K / Ctrl+K) -->
+  <div id="command-overlay" class="command-overlay" style="display:none">
+    <div class="command-box">
+      <div class="command-header">
+        <span class="cmd-prompt">&gt;</span>
+        <input type="text" id="command-input" placeholder="Execute command, search vault, or jump to tab..." autocomplete="off" autofocus>
+        <span class="cmd-kbd">ESC</span>
+      </div>
+      <div id="command-results" class="command-results"></div>
+    </div>
+  </div>
+
+  <!-- App Layout -->
+  <div class="app-shell">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-badge">
+          <span class="pulse-indicator"></span>
+          <span class="brand-title">SPIKE//OS</span>
+        </div>
+        <span class="brand-version">v2.4.0 • ONLINE</span>
+      </div>
+
+      <div class="search-box">
+        <svg class="search-icon" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/>
+        </svg>
+        <input type="text" id="global-search" placeholder="Search notes & #tags..." oninput="doSearch()" autocomplete="off">
+        <div id="search-results" class="search-results-dropdown"></div>
+      </div>
+
+      <nav class="nav-menu">
+        <button onclick="showTab('sprints')" class="nav-item active" id="btn-sprints">
+          <span class="nav-icon">🚀</span>
+          <span class="nav-label">Sprints</span>
+          <span class="nav-count" id="count-sprints">0</span>
+        </button>
+        <button onclick="showTab('agents')" class="nav-item" id="btn-agents">
+          <span class="nav-icon">🤖</span>
+          <span class="nav-label">Agents</span>
+          <span class="nav-count" id="count-agents">0</span>
+        </button>
+        <button onclick="showTab('brain')" class="nav-item" id="btn-brain">
+          <span class="nav-icon">🧠</span>
+          <span class="nav-label">Neural Vault</span>
+        </button>
+        <button onclick="showTab('ideas')" class="nav-item" id="btn-ideas">
+          <span class="nav-icon">💡</span>
+          <span class="nav-label">Ideation</span>
+          <span class="nav-count" id="count-ideas">0</span>
+        </button>
+        <button onclick="showTab('links')" class="nav-item" id="btn-links">
+          <span class="nav-icon">🔗</span>
+          <span class="nav-label">Quick Links</span>
+        </button>
+        <button onclick="showTab('chat')" class="nav-item" id="btn-chat">
+          <span class="nav-icon">⚡</span>
+          <span class="nav-label">Terminal Chat</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="system-telemetry">
+          <div class="telemetry-item">
+            <span>MEM</span>
+            <div class="meter-bar"><div class="meter-fill" style="width: 44%"></div></div>
+          </div>
+          <div class="telemetry-item">
+            <span>LLM</span>
+            <span class="telemetry-val">CLAUDE-3.7</span>
+          </div>
+        </div>
+        <button class="sound-toggle-btn" id="sound-btn" onclick="toggleAudio()">🔊 SFX: ON</button>
+      </div>
+    </aside>
+
+    <!-- Main Viewport -->
+    <div class="main-wrapper">
+      <!-- HUD Topbar -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <span class="hud-breadcrumb" id="current-view-title">WORKSPACE // SPRINTS</span>
+        </div>
+        <div class="topbar-right">
+          <div class="hud-item kbd-hint" onclick="openCmdPalette()">
+            <span>CMD PALETTE</span>
+            <kbd>⌘K</kbd>
+          </div>
+          <div class="hud-item">
+            <span class="status-dot"></span>
+            <span id="clock-display">00:00:00</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Main Panels -->
+      <main class="content-scroll">
+        <!-- TAB: SPRINTS -->
+        <section id="sprints" class="tab-content active">
+          <div class="section-header">
+            <div>
+              <h1 class="panel-heading">Sprint Command Board</h1>
+              <p class="panel-subheading">Active development cycles, task states, and project roadmap.</p>
+            </div>
+            <button class="action-btn primary" onclick="showNewTaskModal()">+ New Sprint Task</button>
+          </div>
+
+          <div class="kanban-grid">
+            <div class="kanban-col" data-col="backlog">
+              <div class="col-header">
+                <span class="col-title">BACKLOG</span>
+                <span class="col-badge" id="badge-backlog">0</span>
+              </div>
+              <div class="col-cards" id="col-backlog"></div>
+            </div>
+
+            <div class="kanban-col" data-col="todo">
+              <div class="col-header">
+                <span class="col-title">TO DO</span>
+                <span class="col-badge" id="badge-todo">0</span>
+              </div>
+              <div class="col-cards" id="col-todo"></div>
+            </div>
+
+            <div class="kanban-col" data-col="doing">
+              <div class="col-header">
+                <span class="col-title">IN PROGRESS</span>
+                <span class="col-badge highlight" id="badge-doing">0</span>
+              </div>
+              <div class="col-cards" id="col-doing"></div>
+            </div>
+
+            <div class="kanban-col" data-col="done">
+              <div class="col-header">
+                <span class="col-title">COMPLETED</span>
+                <span class="col-badge" id="badge-done">0</span>
+              </div>
+              <div class="col-cards" id="col-done"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- TAB: AGENTS -->
+        <section id="agents" class="tab-content">
+          <div class="section-header">
+            <div>
+              <h1 class="panel-heading">Autonomous Agent Fleet</h1>
+              <p class="panel-subheading">Background orchestrators, automation workers, and personas.</p>
+            </div>
+          </div>
+          <div id="agent-list" class="agent-grid"></div>
+        </section>
+
+        <!-- TAB: BRAIN / NEURAL VAULT -->
+        <section id="brain" class="tab-content">
+          <div class="brain-full-container">
+            <div class="brain-sidebar">
+              <div class="vault-header">
+                <h3>VAULT ARCHIVE</h3>
+                <span class="hud-tag">DOCS & NOTES</span>
+              </div>
+              <div id="vault-list" class="vault-list"></div>
+
+              <div class="note-editor">
+                <h4>+ Quick Note Injection</h4>
+                <input type="text" id="note-title" placeholder="Document title...">
+                <textarea id="note-text" placeholder="Write markdown with [[backlinks]] and #tags..."></textarea>
+                <button class="action-btn primary" onclick="saveCurrentNote()">Commit to Vault</button>
+              </div>
+            </div>
+
+            <div class="brain-visual">
+              <div class="canvas-controls">
+                <span>3D NEURAL TOPOLOGY // ROTATE & CLICK NODES</span>
+              </div>
+              <div id="brain-3d-container" class="brain-3d-canvas"></div>
+
+              <!-- Note Drawer Modal -->
+              <div id="note-overlay" class="note-overlay" style="display:none">
+                <div class="overlay-content">
+                  <div class="overlay-topbar">
+                    <span class="overlay-type">NOTE VIEWER</span>
+                    <button class="close-btn" onclick="closeNoteOverlay()">✕</button>
+                  </div>
+                  <div id="overlay-body"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- TAB: IDEAS -->
+        <section id="ideas" class="tab-content">
+          <div class="section-header">
+            <div>
+              <h1 class="panel-heading">Ideation Stream</h1>
+              <p class="panel-subheading">Backlog brainstorming, architecture specs, and future experiments.</p>
+            </div>
+          </div>
+          <div id="ideas-list" class="ideas-masonry"></div>
+        </section>
+
+        <!-- TAB: LINKS -->
+        <section id="links" class="tab-content">
+          <div class="section-header">
+            <div>
+              <h1 class="panel-heading">Pinned Knowledge Repos</h1>
+              <p class="panel-subheading">Essential external consoles, documentation, and tooling bookmarks.</p>
+            </div>
+          </div>
+          <div id="links-list" class="links-grid"></div>
+        </section>
+
+        <!-- TAB: CHAT / TERMINAL -->
+        <section id="chat" class="tab-content">
+          <div class="terminal-container">
+            <div class="terminal-bar">
+              <div class="terminal-dots">
+                <span class="dot red"></span>
+                <span class="dot yellow"></span>
+                <span class="dot green"></span>
+              </div>
+              <span class="terminal-title">claude-code --bridge v2.0.1</span>
+              <button class="clear-terminal-btn" onclick="clearChat()">Clear</button>
+            </div>
+            <div id="chat-window" class="chat-window">
+              <div class="chat-msg system">
+                <span class="msg-author">CORE-SYS</span>
+                <span class="msg-body">SpikeOS daemon initialized. Direct shell link to Claude CLI established.</span>
+              </div>
+            </div>
+            <div class="chat-input-row">
+              <span class="cli-arrow">❯</span>
+              <input type="text" id="chat-input" placeholder="Prompt Claude Code or query repository..." onkeydown="handleChatKey(event)">
+              <button class="action-btn primary" id="chat-send-btn" onclick="sendChat()">Execute</button>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

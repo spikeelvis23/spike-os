@@ -1,0 +1,4 @@
+[
+  { "id": 1, "name": "Core", "icon": "⚙️", "role": "System Architect", "status": "active" },
+  { "id": 2, "name": "Hype", "icon": "📣", "role": "Bland Sheep Crew Socials", "status": "active" }
+]
