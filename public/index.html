@@ -7,109 +7,81 @@
     <link rel="stylesheet" href="style.css">
     <!-- Three.js for the 3D Brain Map -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
-    <style>
-        #brain-tooltip {
-            position: absolute;
-            padding: 4px 8px;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            border-radius: 4px;
-            font-size: 12px;
-            pointer-events: none;
-            z-index: 100;
-            display: none;
-            border: 1px solid var(--accent);
-            box-shadow: 0 0 10px var(--accent);
-        }
-        .quick-action-menu {
-            position: absolute;
-            background: var(--panel);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 5px;
-            z-index: 1000;
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5);
-        }
-        .quick-action-btn {
-            background: transparent;
-            border: none;
-            color: var(--text);
-            padding: 6px 12px;
-            text-align: left;
-            cursor: pointer;
-            border-radius: 4px;
-            font-size: 12px;
-        }
-        .quick-action-btn:hover {
-            background: var(--accent);
-            color: var(--bg);
-        }
-    </style>
 </head>
-<body onload="initOS()">
-    <div id="brain-tooltip"></div>
-    <div id="command-overlay" class="command-overlay" style="display:none">
+<body>
+    <div id="brain-tooltip" class="brain-tooltip"></div>
+
+    <!-- Ctrl+K command bar -->
+    <div id="command-overlay" class="command-overlay" hidden>
         <div class="command-box">
-            <input type="text" id="command-input" placeholder="Type a command or search..." autofocus>
-            <div id="command-results" class="search-results" style="display:block; position: static; margin-top: 1rem;"></div>
+            <input type="text" id="command-input" placeholder="Search your brain…" autocomplete="off">
+            <div id="command-results" class="command-results"></div>
+            <p class="command-hint"><kbd>Esc</kbd> to close</p>
         </div>
     </div>
+
     <nav class="sidebar">
-        <div class="logo">spike-os</div>
+        <div class="logo"><span class="logo-dot"></span>spike-os</div>
+
         <div class="search-container">
-            <input type="text" id="global-search" placeholder="Search brain (#tags...)" oninput="doSearch()">
-            <div id="search-results" class="search-results"></div>
+            <input type="text" id="global-search" placeholder="Search brain (#tags…)" autocomplete="off">
+            <div id="search-results" class="search-results" hidden></div>
         </div>
+
         <div class="nav-links">
-            <button onclick="showTab('sprints')" class="nav-btn active" id="btn-sprints">🚀 Sprints</button>
-            <button onclick="showTab('agents')" class="nav-btn" id="btn-agents">🤖 Agents</button>
-            <button onclick="showTab('links')" class="nav-btn" id="btn-links">🔗 Links</button>
-            <button onclick="showTab('ideas')" class="nav-btn" id="btn-ideas">💡 Ideas</button>
-            <button onclick="showTab('brain')" class="nav-btn" id="btn-brain">🧠 Brain</button>
-            <button onclick="showTab('chat')" class="nav-btn" id="btn-chat">💬 Chat</button>
+            <button class="nav-btn active" data-tab="sprints"><span>🚀</span> Sprints</button>
+            <button class="nav-btn" data-tab="agents"><span>🤖</span> Agents</button>
+            <button class="nav-btn" data-tab="links"><span>🔗</span> Links</button>
+            <button class="nav-btn" data-tab="ideas"><span>💡</span> Ideas</button>
+            <button class="nav-btn" data-tab="brain"><span>🧠</span> Brain</button>
+            <button class="nav-btn" data-tab="chat"><span>💬</span> Chat</button>
         </div>
+
+        <p class="sidebar-hint"><kbd>Ctrl</kbd> + <kbd>K</kbd> to search</p>
     </nav>
 
     <main class="content">
         <section id="sprints" class="tab-content active">
-            <h1>Sprint Board</h1>
-            <div id="sprint-list" class="grid"></div>
+            <header class="page-head">
+                <h1>Sprint Board</h1>
+                <p id="sprint-name" class="page-sub"></p>
+            </header>
+            <p class="hint">Click a task to move it to the next column.</p>
+            <div id="sprint-board" class="sprint-board"></div>
         </section>
 
         <section id="agents" class="tab-content">
-            <h1>Agent Team</h1>
+            <header class="page-head"><h1>Agent Team</h1></header>
             <div id="agent-list" class="grid"></div>
         </section>
 
         <section id="links" class="tab-content">
-            <h1>Knowledge Links</h1>
+            <header class="page-head"><h1>Knowledge Links</h1></header>
             <div id="links-list" class="grid"></div>
         </section>
 
         <section id="ideas" class="tab-content">
-            <h1>Ideas & Brainstorming</h1>
+            <header class="page-head"><h1>Ideas &amp; Brainstorming</h1></header>
             <div id="ideas-list" class="grid"></div>
         </section>
 
         <section id="brain" class="tab-content">
             <div class="brain-full-container">
                 <div class="brain-sidebar">
-                    <h2 style="margin-top:0">Vault</h2>
+                    <h2>Vault</h2>
                     <div id="vault-list" class="vault-list"></div>
-                    <div class="note-editor">
-                        <input type="text" id="note-title" placeholder="Note title...">
-                        <textarea id="note-text" placeholder="Start writing..."></textarea>
-                        <button onclick="saveCurrentNote()">Save Note</button>
-                    </div>
+                    <form id="note-form" class="note-editor">
+                        <input type="text" id="note-title" placeholder="Note title…">
+                        <textarea id="note-text" placeholder="Start writing… use [[links]] and #tags"></textarea>
+                        <button type="submit">Save Note</button>
+                        <p id="note-status" class="note-status"></p>
+                    </form>
                 </div>
                 <div class="brain-visual">
                     <div id="brain-3d-container" class="brain-3d-canvas"></div>
-                    <div id="note-overlay" class="note-overlay" style="display:none">
+                    <div id="note-overlay" class="note-overlay" hidden>
                         <div class="overlay-content">
-                            <button class="close-btn" onclick="closeNoteOverlay()">×</button>
+                            <button id="close-note" class="close-btn" aria-label="Close">×</button>
                             <div id="overlay-body"></div>
                         </div>
                     </div>
@@ -118,12 +90,13 @@
         </section>
 
         <section id="chat" class="tab-content">
-            <h1>System Chat</h1>
+            <header class="page-head"><h1>System Chat</h1></header>
+            <p class="hint">Runs Claude Code on your laptop inside spike-os. Answers can take a minute.</p>
             <div id="chat-window" class="chat-window"></div>
-            <div class="chat-input">
-                <input type="text" id="chat-input" placeholder="Ask spike-os...">
-                <button onclick="sendChat()">Send</button>
-            </div>
+            <form id="chat-form" class="chat-input">
+                <input type="text" id="chat-input" placeholder="Ask spike-os…" autocomplete="off">
+                <button type="submit">Send</button>
+            </form>
         </section>
     </main>
 

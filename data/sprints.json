@@ -1,5 +1,23 @@
-[
-  { "id": 1, "title": "Setup spike-os dashboard", "status": "done", "project": "spike-os" },
-  { "id": 2, "title": "Audit server.js", "status": "done", "project": "spike-os" },
-  { "id": 3, "title": "build the menu page for DirectPlate", "status": "todo", "project": "DirectPlate" }
-]
+{
+  "sprint": "Week 1 — Get spike-os running",
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Setup spike-os dashboard",
+      "status": "backlog",
+      "project": "spike-os"
+    },
+    {
+      "id": 2,
+      "title": "Audit server.js",
+      "status": "backlog",
+      "project": "spike-os"
+    },
+    {
+      "id": 3,
+      "title": "Build the menu page for DirectPlate",
+      "status": "todo",
+      "project": "DirectPlate"
+    }
+  ]
+}
