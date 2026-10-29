@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clay Icons Demo</title>
+    <style>
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            background: #e9e7e4;
+            font-family: system-ui, sans-serif;
+            color: #4a4540;
+        }
+
+        .clay-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 96px);
+            gap: 28px 32px;
+        }
+
+        /* ---------- the clay tile ---------- */
+        .clay {
+            /* each color class below sets these two */
+            --tile: #ddd;
+            --ink: #555;
+
+            width: 96px;
+            height: 96px;
+            border: none;
+            border-radius: 28px;          /* big rounded corners = puffy */
+            background: var(--tile);
+            display: grid;
+            place-items: center;
+            cursor: pointer;
+
+            /* 3 shadows stacked = the clay look */
+            box-shadow:
+                inset 0 5px 8px rgba(255, 255, 255, 0.6),   /* 1. light on the top edge */
+                inset 0 -7px 12px rgba(0, 0, 0, 0.12),      /* 2. shade on the bottom edge */
+                0 16px 26px -10px rgba(0, 0, 0, 0.3);       /* 3. shadow on the "floor" */
+
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        /* hover: lift up, and the floor shadow glows in the tile's own color */
+        .clay:hover {
+            transform: translateY(-5px);
+            box-shadow:
+                inset 0 5px 8px rgba(255, 255, 255, 0.6),
+                inset 0 -7px 12px rgba(0, 0, 0, 0.12),
+                0 22px 30px -10px var(--tile);
+        }
+
+        /* click: squish down a little, like pressing clay */
+        .clay:active {
+            transform: translateY(1px) scale(0.96);
+        }
+
+        .clay .icon {
+            width: 46px;
+            height: 46px;
+            color: var(--ink);
+            fill: color-mix(in srgb, var(--ink) 30%, transparent); /* soft filled inside */
+            stroke: currentColor;
+            stroke-width: 2.2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            filter: drop-shadow(0 2px 1px rgba(0, 0, 0, 0.18)); /* icon sits "on" the clay */
+        }
+
+        /* ---------- colors: pastel tile + contrasting ink ---------- */
+        .clay-pink   { --tile: #f3c1c4; --ink: #b2424f; }
+        .clay-sage   { --tile: #9fc39a; --ink: #e5675d; }
+        .clay-sky    { --tile: #a9cdf2; --ink: #ffffff; }
+        .clay-butter { --tile: #f7dc78; --ink: #e8685a; }
+        .clay-mint   { --tile: #94e0c4; --ink: #2f8f73; }
+        .clay-coral  { --tile: #f49883; --ink: #3f9a6e; }
+
+        .label { text-align: center; font-size: 0.85rem; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div id="clay-grid" class="clay-grid"></div>
+
+    <script>
+        // Same line icons as spike-os
+        const ICONS = {
+            sprints: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 7v7M12 7v4M16 7v9"/>',
+            projects: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+            ideas: '<path d="M9 18h6M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.3h6c0-1 .4-1.8 1-2.3A7 7 0 0 0 12 2z"/>',
+            docs: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',
+            brain: '<circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M12 7v5l-5.5 5.5M12 12l5.5 5.5"/>',
+            chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>',
+        };
+
+        // Which panel gets which color
+        const TILES = [
+            { name: 'sprints', label: 'Sprints', color: 'pink' },
+            { name: 'projects', label: 'Projects', color: 'coral' },
+            { name: 'ideas', label: 'Ideas', color: 'butter' },
+            { name: 'docs', label: 'Docs', color: 'sage' },
+            { name: 'brain', label: 'Brain', color: 'mint' },
+            { name: 'chat', label: 'Chat', color: 'sky' },
+        ];
+
+        const SVG_NS = 'http://www.w3.org/2000/svg';
+
+        const icon = (name) => {
+            const svg = document.createElementNS(SVG_NS, 'svg');
+            svg.setAttribute('viewBox', '0 0 24 24');
+            svg.setAttribute('class', 'icon');
+            svg.innerHTML = ICONS[name];
+            return svg;
+        };
+
+        const grid = document.getElementById('clay-grid');
+
+        TILES.forEach((tile) => {
+            const wrap = document.createElement('div');
+
+            const button = document.createElement('button');
+            button.className = `clay clay-${tile.color}`;
+            button.setAttribute('aria-label', tile.label);
+            button.appendChild(icon(tile.name));
+            button.addEventListener('click', () => console.log(`Open ${tile.label}`));
+
+            const label = document.createElement('div');
+            label.className = 'label';
+            label.textContent = tile.label;
+
+            wrap.append(button, label);
+            grid.appendChild(wrap);
+        });
+    </script>
+</body>
+</html>

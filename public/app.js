@@ -57,6 +57,8 @@ const debounce = (fn, ms = 200) => {
 
 const RENDERERS = {
     sprints: () => renderSprints(),
+    projects: () => renderProjects(),
+    docs: () => renderDocs(),
     agents: () => renderAgents(),
     links: () => renderLinks(),
     ideas: () => renderIdeas(),
@@ -239,13 +241,108 @@ const searchByTag = (tag) => {
     doSearch();
 };
 
+// ---------- quick launch (Ctrl+K) ----------
+// Type a command word first ("task", "idea", "go", "theme", "ask"), then the details.
+// Anything else is treated as a search of your brain notes.
+
+// Pulls a #tag out of text: "build logo #BSC" → { text: "build logo", tag: "BSC" }
+const splitTag = (text) => {
+    const match = text.match(/#(\w+)/);
+    return {
+        text: text.replace(/#\w+/, '').trim(),
+        tag: match ? match[1] : null,
+    };
+};
+
+const COMMANDS = [
+    {
+        word: 'task',
+        help: 'task <title> #project — add to your sprint',
+        run: async (rest) => {
+            const { text, tag } = splitTag(rest);
+            if (!text) return toast('Type a task title after "task"');
+            const data = await getJson('/api/data/sprints');
+            const sprint = Array.isArray(data) ? { sprint: '', tasks: data } : data;
+            sprint.tasks = sprint.tasks || [];
+            const nextId = Math.max(0, ...sprint.tasks.map((t) => Number(t.id) || 0)) + 1;
+            sprint.tasks.push({ id: nextId, title: text, status: 'todo', project: tag || 'general' });
+            await postJson('/api/data/sprints', sprint); // whole file, as always
+            toast(`Task added to ${tag || 'general'}`);
+            showTab('sprints');
+        },
+    },
+    {
+        word: 'idea',
+        help: 'idea <text> #category — save an idea',
+        run: async (rest) => {
+            const { text, tag } = splitTag(rest);
+            if (!text) return toast('Type your idea after "idea"');
+            const data = await getJson('/api/data/ideas');
+            const ideas = asList(data, 'ideas');
+            const nextId = Math.max(0, ...ideas.map((i) => Number(i.id) || 0)) + 1;
+            ideas.push({ id: nextId, idea: text, category: tag || 'Idea' });
+            // Save it back in the same shape we got it (plain list, or { ideas: [...] })
+            await postJson('/api/data/ideas', Array.isArray(data) ? ideas : { ...data, ideas });
+            toast('Idea saved');
+            showTab('ideas');
+        },
+    },
+    {
+        word: 'go',
+        help: 'go <panel> — jump to a panel',
+        run: (rest) => {
+            const tabs = [...document.querySelectorAll('.nav-btn')].map((b) => b.dataset.tab);
+            const tab = tabs.find((t) => t.startsWith(rest.toLowerCase()));
+            if (tab) showTab(tab);
+            else toast(`No panel called "${rest}"`);
+        },
+    },
+    {
+        word: 'theme',
+        help: 'theme <name> — mission, linear, raycast, obsidian, home',
+        run: (rest) => {
+            const theme = THEMES.find((t) => t.id.startsWith(rest.toLowerCase()));
+            if (theme) applyTheme(theme.id);
+            else toast(`No theme called "${rest}"`);
+        },
+    },
+    {
+        word: 'ask',
+        help: 'ask <question> — send to Claude',
+        run: (rest) => {
+            if (!rest) return toast('Type a question after "ask"');
+            showTab('chat');
+            document.getElementById('chat-input').value = rest;
+            document.getElementById('chat-form').requestSubmit(); // same as pressing Send
+        },
+    },
+];
+
+// One row in the quick launch list.
+const commandRow = (label, detail, onRun) => {
+    const row = el('button', 'search-item command-row');
+    row.type = 'button';
+    const top = el('div', 'search-top');
+    top.append(icon('bolt'), el('b', null, label));
+    row.append(top, el('div', 'search-snippet', detail));
+    row.addEventListener('click', async () => {
+        toggleCommandBar(false);
+        try {
+            await onRun();
+        } catch (err) {
+            toast(`That didn't work: ${err.message}`);
+        }
+    });
+    return row;
+};
+
 const toggleCommandBar = (open) => {
     const overlay = document.getElementById('command-overlay');
     const input = document.getElementById('command-input');
     overlay.hidden = open === undefined ? !overlay.hidden : !open;
     if (!overlay.hidden) {
         input.value = '';
-        document.getElementById('command-results').replaceChildren();
+        doCommandSearch(); // shows the command list right away
         input.focus();
     }
 };
@@ -253,23 +350,43 @@ const toggleCommandBar = (open) => {
 const doCommandSearch = async () => {
     const query = document.getElementById('command-input').value.trim();
     const resultsDiv = document.getElementById('command-results');
-    if (query.length < 2) {
-        resultsDiv.replaceChildren();
-        return;
-    }
-    try {
-        const results = await runSearch(query);
-        resultsDiv.replaceChildren();
-        results.forEach((item) => {
-            resultsDiv.appendChild(searchRow(item, () => {
-                toggleCommandBar(false);
-                openNoteFromSearch(item.name);
+    resultsDiv.replaceChildren();
+
+    // Empty box → show every command as a cheat sheet.
+    if (!query) {
+        COMMANDS.forEach((cmd) => {
+            resultsDiv.appendChild(commandRow(cmd.word, cmd.help, () => {
+                toggleCommandBar(true);
+                document.getElementById('command-input').value = `${cmd.word} `;
+                doCommandSearch();
             }));
         });
-        if (results.length === 0) resultsDiv.appendChild(el('p', 'search-none', 'No matches'));
-    } catch (err) {
-        console.error('Command search error:', err);
+        return;
     }
+
+    // "task build logo #BSC" → word = "task", rest = "build logo #BSC"
+    const [word, ...restWords] = query.split(' ');
+    const rest = restWords.join(' ').trim();
+    const matches = COMMANDS.filter((cmd) => cmd.word.startsWith(word.toLowerCase()));
+    matches.forEach((cmd) => {
+        resultsDiv.appendChild(commandRow(`${cmd.word} ${rest}`.trim(), cmd.help, () => cmd.run(rest)));
+    });
+
+    // Also search notes, so the bar still works as a search box.
+    if (query.length >= 2) {
+        try {
+            const results = await runSearch(query);
+            results.forEach((item) => {
+                resultsDiv.appendChild(searchRow(item, () => {
+                    toggleCommandBar(false);
+                    openNoteFromSearch(item.name);
+                }));
+            });
+        } catch (err) {
+            console.error('Command search error:', err);
+        }
+    }
+    if (!resultsDiv.children.length) resultsDiv.appendChild(el('p', 'search-none', 'No matches'));
 };
 
 // ---------- brain: vault + notes ----------
@@ -606,6 +723,244 @@ const showQuickActions = (node, x, y) => {
     document.body.appendChild(menu);
 };
 
+// ---------- icons ----------
+// Line icons drawn with SVG. They use stroke="currentColor", so they take the
+// text color of whatever they sit in — that's why they change with the theme.
+// (These shapes are fixed strings we wrote, never user data, so innerHTML is safe here.)
+
+const ICONS = {
+    sprints: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 7v7M12 7v4M16 7v9"/>',
+    projects: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+    agents: '<rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V4"/><circle cx="9" cy="14" r="1"/><circle cx="15" cy="14" r="1"/>',
+    ideas: '<path d="M9 18h6M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.3h6c0-1 .4-1.8 1-2.3A7 7 0 0 0 12 2z"/>',
+    docs: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',
+    links: '<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>',
+    brain: '<circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M12 7v5l-5.5 5.5M12 12l5.5 5.5"/>',
+    chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>',
+    theme: '<circle cx="12" cy="12" r="9"/><circle cx="8" cy="10" r="1"/><circle cx="12" cy="7.5" r="1"/><circle cx="16" cy="10" r="1"/><path d="M12 21a2.5 2.5 0 0 1 0-5h2a3 3 0 0 0 3-3"/>',
+    search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+    bolt: '<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>',
+    folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+    note: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/>',
+};
+
+const SVG_NS = 'http://www.w3.org/2000/svg'; // SVG elements need this "namespace" to draw
+
+const icon = (name) => {
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('class', 'icon');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.innerHTML = ICONS[name] || ICONS.note;
+    return svg;
+};
+
+// Finds every <span data-icon="x"> in the HTML and puts the matching icon in it.
+const mountIcons = () => {
+    document.querySelectorAll('[data-icon]').forEach((spot) => {
+        spot.replaceChildren(icon(spot.dataset.icon));
+    });
+};
+
+// ---------- toast (small pop-up message) ----------
+
+const toast = (message) => {
+    const box = document.getElementById('toast');
+    box.textContent = message;
+    box.hidden = false;
+    clearTimeout(toast.timer); // functions are objects, so we can hang a timer on one
+    toast.timer = setTimeout(() => (box.hidden = true), 2500);
+};
+
+// ---------- projects (folders built from your data) ----------
+// No folders are stored anywhere. Every time this panel opens, it groups tasks
+// by their "project" name, so a new project appears as soon as a task uses it.
+
+const slug = (name) => name.toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+const renderProjects = async () => {
+    const view = document.getElementById('projects-view');
+    document.getElementById('projects-title').textContent = 'Projects';
+    document.getElementById('projects-back').hidden = true;
+    document.getElementById('projects-hint').hidden = false;
+
+    const data = await getJson('/api/data/sprints');
+    const tasks = asList(data, 'tasks');
+
+    // Group tasks into { "DirectPlate": [task, task], "spike-os": [task] }
+    const groups = {};
+    tasks.forEach((task) => {
+        const name = task.project || 'general';
+        if (!groups[name]) groups[name] = [];
+        groups[name].push(task);
+    });
+
+    const names = Object.keys(groups).sort();
+    if (names.length === 0) return showEmpty(view, 'No projects yet. Add a task with a #project.');
+
+    const grid = el('div', 'grid');
+    names.forEach((name) => {
+        const list = groups[name];
+        const done = list.filter((t) => t.status === 'done').length;
+        const percent = Math.round((done / list.length) * 100);
+
+        const card = el('button', 'card folder-card');
+        card.type = 'button';
+        const head = el('div', 'folder-head');
+        head.append(icon('folder'), el('h3', null, name));
+
+        const bar = el('div', 'progress');
+        const fill = el('div', 'progress-fill');
+        fill.style.width = `${percent}%`;
+        bar.appendChild(fill);
+
+        card.append(head, el('p', 'muted', `${list.length} tasks · ${done} done · ${percent}%`), bar);
+        card.addEventListener('click', () => openProject(name, list));
+        grid.appendChild(card);
+    });
+    view.replaceChildren(grid);
+};
+
+const openProject = async (name, tasks) => {
+    const view = document.getElementById('projects-view');
+    document.getElementById('projects-title').textContent = name;
+    document.getElementById('projects-back').hidden = false;
+    document.getElementById('projects-hint').hidden = true;
+
+    const columns = el('div', 'project-columns');
+
+    // Left: this project's tasks, grouped by status
+    const taskBox = el('div', 'card');
+    taskBox.appendChild(el('h3', null, 'Tasks'));
+    STATUSES.forEach((status) => {
+        const inStatus = tasks.filter((t) => t.status === status);
+        if (inStatus.length === 0) return;
+        taskBox.appendChild(el('p', 'status-label', status));
+        inStatus.forEach((t) => taskBox.appendChild(el('div', 'project-task', t.title)));
+    });
+
+    // Right: notes in the vault tagged with this project, e.g. #directplate
+    const noteBox = el('div', 'card');
+    noteBox.appendChild(el('h3', null, `Notes tagged #${slug(name)}`));
+    const notes = await runSearch(`#${slug(name)}`).catch(() => []);
+    if (notes.length === 0) noteBox.appendChild(el('p', 'muted', `No notes yet. Add #${slug(name)} to a note in Brain.`));
+    notes.forEach((note) => {
+        const row = el('button', 'vault-item');
+        row.type = 'button';
+        row.append(icon('note'), document.createTextNode(` ${note.name.replace(/\.md$/, '')}`));
+        row.addEventListener('click', () => openNoteFromSearch(note.name));
+        noteBox.appendChild(row);
+    });
+
+    columns.append(taskBox, noteBox);
+    view.replaceChildren(columns);
+};
+
+// ---------- docs (markdown files in /docs) ----------
+
+// Small markdown renderer: # headings, - lists, ``` code blocks, `code`, **bold**.
+// It builds real elements instead of HTML strings, so nothing in a doc can break the page.
+const addInline = (parent, line) => {
+    line.split(/(`[^`]+`|\*\*[^*]+\*\*)/).forEach((part) => {
+        if (part.startsWith('`') && part.endsWith('`') && part.length > 1) {
+            parent.appendChild(el('code', null, part.slice(1, -1)));
+        } else if (part.startsWith('**') && part.endsWith('**') && part.length > 3) {
+            parent.appendChild(el('strong', null, part.slice(2, -2)));
+        } else if (part) {
+            parent.appendChild(document.createTextNode(part));
+        }
+    });
+};
+
+const renderMarkdown = (text, container) => {
+    container.replaceChildren();
+    let list = null;
+    let codeBlock = null;
+
+    text.split('\n').forEach((line) => {
+        if (line.startsWith('```')) {
+            if (codeBlock) {
+                codeBlock = null; // closing fence
+            } else {
+                const pre = el('pre');
+                codeBlock = el('code');
+                pre.appendChild(codeBlock);
+                container.appendChild(pre);
+            }
+            list = null;
+            return;
+        }
+        if (codeBlock) {
+            codeBlock.textContent += `${line}\n`;
+            return;
+        }
+
+        const heading = line.match(/^(#{1,3})\s+(.*)/);
+        const bullet = line.match(/^\s*(?:[-*]|\d+\.)\s+(.*)/);
+
+        if (heading) {
+            list = null;
+            const h = el(`h${heading[1].length}`);
+            addInline(h, heading[2]);
+            container.appendChild(h);
+        } else if (bullet) {
+            if (!list) {
+                list = el(/^\s*\d+\./.test(line) ? 'ol' : 'ul');
+                container.appendChild(list);
+            }
+            const li = el('li');
+            addInline(li, bullet[1]);
+            list.appendChild(li);
+        } else if (line.trim()) {
+            list = null;
+            const p = el('p');
+            addInline(p, line);
+            container.appendChild(p);
+        } else {
+            list = null;
+        }
+    });
+};
+
+const openDoc = async (name, button) => {
+    const { text } = await getJson(`/api/docs/${encodeURIComponent(name)}`);
+    document.querySelectorAll('.doc-item').forEach((b) => b.classList.remove('active'));
+    button.classList.add('active');
+    renderMarkdown(text, document.getElementById('doc-view'));
+};
+
+const renderDocs = async () => {
+    const list = document.getElementById('doc-list');
+    const view = document.getElementById('doc-view');
+    let files;
+    try {
+        files = await getJson('/api/docs');
+    } catch {
+        // The server doesn't have the docs route yet.
+        list.replaceChildren();
+        view.replaceChildren(
+            el('h2', null, 'Docs needs one server route'),
+            el('p', null, 'server.js has no /api/docs route yet. Ask Claude Code: "add GET /api/docs (list .md files in docs/) and GET /api/docs/<name> (return { name, text }) to server.js, then restart."'),
+        );
+        return;
+    }
+
+    if (files.length === 0) {
+        list.replaceChildren();
+        return showEmpty(view, 'No docs yet. Put .md files in the docs/ folder.');
+    }
+
+    list.replaceChildren();
+    files.forEach((name, index) => {
+        const button = el('button', 'doc-item');
+        button.type = 'button';
+        button.append(icon('note'), document.createTextNode(` ${name.replace(/\.md$/, '')}`));
+        button.addEventListener('click', () => openDoc(name, button));
+        list.appendChild(button);
+        if (index === 0) openDoc(name, button); // open the first doc automatically
+    });
+};
+
 // ---------- themes ----------
 
 // Each id matches a [data-theme="..."] block in style.css.
@@ -616,13 +971,14 @@ const THEMES = [
     { id: 'raycast', label: 'Raycast', note: 'Charcoal + coral', bg: '#161616', accent: '#ff6363' },
     { id: 'obsidian', label: 'Obsidian', note: 'Graphite + purple', bg: '#1e1e1e', accent: '#a882ff' },
     { id: 'home', label: 'Home', note: 'Light + blue', bg: '#f2f4f7', accent: '#0398d6' },
+    { id: 'bsc', label: 'BSC', note: 'Bland Sheep Crew clay', bg: '#e6dfd2', accent: '#b4462f' },
 ];
 const THEME_KEY = 'spike-os-theme';
 
 const applyTheme = (id) => {
     const theme = THEMES.find((t) => t.id === id) || THEMES[0];
     document.documentElement.dataset.theme = theme.id; // sets <html data-theme="linear">
-    document.getElementById('theme-btn').textContent = `🎨 Theme: ${theme.label}`;
+    document.getElementById('theme-label').textContent = `Theme: ${theme.label}`;
     try {
         localStorage.setItem(THEME_KEY, theme.id); // remember it for next time
     } catch {
@@ -682,6 +1038,18 @@ const loadSavedTheme = () => {
 // ---------- start ----------
 
 const initOS = () => {
+    mountIcons();
+
+    // Enter in the quick launch box runs the top result.
+    document.getElementById('command-input').addEventListener('keydown', async (event) => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        await doCommandSearch(); // make sure the list matches what's typed right now
+        document.querySelector('#command-results button')?.click();
+    });
+
+    document.getElementById('projects-back').addEventListener('click', renderProjects);
+
     document.querySelectorAll('.nav-btn').forEach((btn) => {
         btn.addEventListener('click', () => showTab(btn.dataset.tab));
     });

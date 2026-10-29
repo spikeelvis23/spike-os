@@ -10,13 +10,17 @@
 </head>
 <body>
     <div id="brain-tooltip" class="brain-tooltip"></div>
+    <div id="toast" class="toast" hidden></div>
 
-    <!-- Ctrl+K command bar -->
+    <!-- Ctrl+K quick launch -->
     <div id="command-overlay" class="command-overlay" hidden>
         <div class="command-box">
-            <input type="text" id="command-input" placeholder="Search your brain…" autocomplete="off">
+            <div class="command-field">
+                <span data-icon="bolt"></span>
+                <input type="text" id="command-input" placeholder="Type a command or search…" autocomplete="off">
+            </div>
             <div id="command-results" class="command-results"></div>
-            <p class="command-hint"><kbd>Esc</kbd> to close</p>
+            <p class="command-hint"><kbd>Enter</kbd> runs the top result · <kbd>Esc</kbd> closes</p>
         </div>
     </div>
 
@@ -24,24 +28,29 @@
         <div class="logo"><span class="logo-dot"></span>spike-os</div>
 
         <div class="search-container">
+            <span class="search-icon" data-icon="search"></span>
             <input type="text" id="global-search" placeholder="Search brain (#tags…)" autocomplete="off">
             <div id="search-results" class="search-results" hidden></div>
         </div>
 
         <div class="nav-links">
-            <button class="nav-btn active" data-tab="sprints"><span>🚀</span> Sprints</button>
-            <button class="nav-btn" data-tab="agents"><span>🤖</span> Agents</button>
-            <button class="nav-btn" data-tab="links"><span>🔗</span> Links</button>
-            <button class="nav-btn" data-tab="ideas"><span>💡</span> Ideas</button>
-            <button class="nav-btn" data-tab="brain"><span>🧠</span> Brain</button>
-            <button class="nav-btn" data-tab="chat"><span>💬</span> Chat</button>
+            <button class="nav-btn active" data-tab="sprints"><span data-icon="sprints"></span> Sprints</button>
+            <button class="nav-btn" data-tab="projects"><span data-icon="projects"></span> Projects</button>
+            <button class="nav-btn" data-tab="agents"><span data-icon="agents"></span> Agents</button>
+            <button class="nav-btn" data-tab="ideas"><span data-icon="ideas"></span> Ideas</button>
+            <button class="nav-btn" data-tab="docs"><span data-icon="docs"></span> Docs</button>
+            <button class="nav-btn" data-tab="links"><span data-icon="links"></span> Links</button>
+            <button class="nav-btn" data-tab="brain"><span data-icon="brain"></span> Brain</button>
+            <button class="nav-btn" data-tab="chat"><span data-icon="chat"></span> Chat</button>
         </div>
 
         <div class="theme-picker">
             <div id="theme-menu" class="theme-menu" hidden></div>
-            <button id="theme-btn" class="theme-btn" type="button" aria-haspopup="true">🎨 Theme: Mission</button>
+            <button id="theme-btn" class="theme-btn" type="button" aria-haspopup="true">
+                <span data-icon="theme"></span><span id="theme-label">Theme: Mission</span>
+            </button>
         </div>
-        <p class="sidebar-hint"><kbd>Ctrl</kbd> + <kbd>K</kbd> to search</p>
+        <p class="sidebar-hint"><kbd>Ctrl</kbd> + <kbd>K</kbd> quick launch</p>
     </nav>
 
     <main class="content">
@@ -54,19 +63,36 @@
             <div id="sprint-board" class="sprint-board"></div>
         </section>
 
+        <section id="projects" class="tab-content">
+            <header class="page-head">
+                <h1 id="projects-title">Projects</h1>
+                <button id="projects-back" class="ghost-btn" type="button" hidden>← All projects</button>
+            </header>
+            <p id="projects-hint" class="hint">Folders are made automatically from the project name on each task. Add one with Ctrl+K → <code>task build logo #BSC</code></p>
+            <div id="projects-view"></div>
+        </section>
+
         <section id="agents" class="tab-content">
             <header class="page-head"><h1>Agent Team</h1></header>
             <div id="agent-list" class="grid"></div>
         </section>
 
-        <section id="links" class="tab-content">
-            <header class="page-head"><h1>Knowledge Links</h1></header>
-            <div id="links-list" class="grid"></div>
-        </section>
-
         <section id="ideas" class="tab-content">
             <header class="page-head"><h1>Ideas &amp; Brainstorming</h1></header>
             <div id="ideas-list" class="grid"></div>
+        </section>
+
+        <section id="docs" class="tab-content">
+            <header class="page-head"><h1>Docs</h1></header>
+            <div class="docs-layout">
+                <div id="doc-list" class="doc-list"></div>
+                <article id="doc-view" class="doc-view"></article>
+            </div>
+        </section>
+
+        <section id="links" class="tab-content">
+            <header class="page-head"><h1>Knowledge Links</h1></header>
+            <div id="links-list" class="grid"></div>
         </section>
 
         <section id="brain" class="tab-content">

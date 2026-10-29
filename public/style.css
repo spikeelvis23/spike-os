@@ -67,7 +67,173 @@
     --radius: 14px;
 }
 
+:root[data-theme="bsc"] {         /* Bland Sheep Crew: bone paper, black sheep, brick + gold */
+    --bg: #e6dfd2;
+    --panel: #efe8dc;
+    --panel-2: #f6f1e8;
+    --border: #d3cabb;
+    --text: #1f1d1b;
+    --muted: #6d675f;
+    --accent: #b4462f;
+    --accent-ink: #f1e9da;
+    --done: #5d7b2f;
+    --danger: #b4462f;
+    --radius: 16px;
+}
+
 body { transition: background-color 0.2s, color 0.2s; }
+
+/* The glow color is the theme's accent at 55% strength, so every theme glows in its own color. */
+:root { --glow: color-mix(in srgb, var(--accent) 55%, transparent); }
+
+/* ---------- icons ---------- */
+.icon {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;   /* = the text color around it, so it follows the theme */
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    flex-shrink: 0;
+    vertical-align: -3px;
+}
+[data-icon] { display: inline-flex; }
+.nav-btn .icon { color: var(--muted); transition: color 0.15s; }
+.nav-btn:hover .icon, .nav-btn.active .icon { color: var(--accent); }
+
+/* ---------- hover underglow ---------- */
+/* One rule for everything clickable, so buttons all feel the same. */
+.nav-btn, .sprint-task, .card, .theme-btn, .theme-option, .search-item,
+.vault-item, .doc-item, .quick-action-btn, .ghost-btn, .backlink-item,
+.chat-input button, .note-editor button {
+    transition: box-shadow 0.2s, transform 0.15s, border-color 0.15s, background-color 0.15s;
+}
+.nav-btn:hover, .sprint-task:hover, a.card:hover, button.card:hover, .theme-btn:hover,
+.doc-item:hover, .ghost-btn:hover, .backlink-item:hover,
+.chat-input button:hover, .note-editor button:hover {
+    box-shadow: 0 10px 22px -10px var(--glow), 0 1px 0 0 var(--glow);
+    transform: translateY(-1px);
+}
+/* People who turn off animations in their settings get the glow without the movement. */
+@media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+    :hover { transform: none !important; }
+}
+
+/* ---------- toast ---------- */
+.toast {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--panel-2);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px -8px var(--glow);
+    z-index: 2000;
+    font-size: 0.9rem;
+}
+
+/* ---------- quick launch extras ---------- */
+.command-field {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    padding: 0 0.85rem;
+    color: var(--accent);
+}
+.command-field:focus-within { border-color: var(--accent); }
+.command-field input { border: none !important; background: none !important; padding-left: 0 !important; }
+.command-row .icon { color: var(--accent); width: 14px; height: 14px; }
+
+/* sidebar search icon */
+.search-icon { position: absolute; left: 0.6rem; top: 0.6rem; color: var(--muted); pointer-events: none; }
+.search-icon .icon { width: 15px; height: 15px; }
+.search-container input { padding-left: 2rem !important; }
+
+/* ---------- projects ---------- */
+.ghost-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.3rem 0.75rem;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+.ghost-btn:hover { color: var(--text); border-color: var(--accent); }
+.hint code, .doc-view code {
+    font-family: var(--mono);
+    font-size: 0.85em;
+    background: var(--panel-2);
+    padding: 1px 5px;
+    border-radius: 4px;
+}
+.folder-card { text-align: left; cursor: pointer; width: 100%; }
+.folder-head { display: flex; align-items: center; gap: 0.5rem; color: var(--accent); }
+.folder-head h3 { margin: 0; color: var(--text); }
+.folder-card p { margin: 0.5rem 0 0.75rem; font-size: 0.85rem; }
+.progress { height: 6px; background: var(--panel-2); border-radius: 999px; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--accent); border-radius: 999px; transition: width 0.4s; }
+.project-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+.project-columns h3 { margin-top: 0; }
+.status-label {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin: 0.75rem 0 0.35rem !important;
+}
+.project-task { padding: 0.4rem 0; border-bottom: 1px solid var(--border); font-size: 0.92rem; }
+.vault-item { display: flex; align-items: center; gap: 0.4rem; width: 100%; }
+
+/* ---------- docs ---------- */
+.docs-layout { display: grid; grid-template-columns: 220px 1fr; gap: 1rem; margin-top: 1.25rem; align-items: start; }
+.doc-list { display: flex; flex-direction: column; gap: 2px; }
+.doc-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    text-align: left;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 0.5rem 0.6rem;
+    cursor: pointer;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.85rem;
+}
+.doc-item:hover, .doc-item.active { background: var(--panel); color: var(--text); border-color: var(--border); }
+.doc-item.active .icon { color: var(--accent); }
+.doc-view {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem 2rem;
+    min-height: 300px;
+    line-height: 1.65;
+}
+.doc-view h1, .doc-view h2 { margin-top: 0; }
+.doc-view pre {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
+    overflow-x: auto;
+}
+.doc-view pre code { background: none; padding: 0; }
+
+@media (max-width: 640px) {
+    .project-columns, .docs-layout { grid-template-columns: 1fr; }
+}
 
 .theme-picker { margin-top: auto; position: relative; }
 .theme-picker + .sidebar-hint { margin-top: 0.6rem; }
@@ -124,6 +290,8 @@ body { transition: background-color 0.2s, color 0.2s; }
     font-size: 0.9rem;
 }
 .theme-btn:hover { border-color: var(--accent); }
+.theme-btn { display: flex; align-items: center; gap: 0.5rem; }
+.theme-btn .icon { color: var(--accent); }
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -628,3 +796,67 @@ kbd {
     .brain-sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
     .brain-visual { height: 60vh; }
 }
+
+/* =====================================================================
+   BSC theme extras: clay icon tiles in the sidebar + puffy clay surfaces
+   Everything below only applies when <html data-theme="bsc">.
+   ===================================================================== */
+
+/* Each sidebar button picks a tile color (--tile) and icon color (--ink) */
+:root[data-theme="bsc"] .nav-btn[data-tab="sprints"]  { --tile: #1f1d1b; --ink: #f1e9da; } /* black sheep */
+:root[data-theme="bsc"] .nav-btn[data-tab="projects"] { --tile: #d6a73a; --ink: #1f1d1b; } /* gold chain */
+:root[data-theme="bsc"] .nav-btn[data-tab="agents"]   { --tile: #b4462f; --ink: #f1e9da; } /* brick */
+:root[data-theme="bsc"] .nav-btn[data-tab="ideas"]    { --tile: #efe6d6; --ink: #1f1d1b; } /* wool */
+:root[data-theme="bsc"] .nav-btn[data-tab="docs"]     { --tile: #a9a49c; --ink: #1f1d1b; } /* concrete */
+:root[data-theme="bsc"] .nav-btn[data-tab="links"]    { --tile: #4a4743; --ink: #d6a73a; } /* smoke */
+:root[data-theme="bsc"] .nav-btn[data-tab="brain"]    { --tile: #1f1d1b; --ink: #d6a73a; } /* black + gold */
+:root[data-theme="bsc"] .nav-btn[data-tab="chat"]     { --tile: #b4462f; --ink: #f1e9da; } /* brick */
+
+/* The little clay tile behind each sidebar icon */
+:root[data-theme="bsc"] .nav-btn [data-icon] {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    background: var(--tile);
+    display: grid;
+    place-items: center;
+    box-shadow:
+        inset 0 2px 3px rgba(255, 255, 255, 0.35),  /* light on top */
+        inset 0 -3px 5px rgba(0, 0, 0, 0.25),       /* shade on bottom */
+        0 6px 10px -5px rgba(0, 0, 0, 0.45);        /* floor shadow */
+    transition: transform 0.15s;
+}
+:root[data-theme="bsc"] .nav-btn .icon {
+    width: 17px;
+    height: 17px;
+    color: var(--ink);
+    fill: color-mix(in srgb, var(--ink) 30%, transparent);
+}
+:root[data-theme="bsc"] .nav-btn:hover [data-icon] { transform: translateY(-2px); }
+:root[data-theme="bsc"] .nav-btn:active [data-icon] { transform: translateY(1px) scale(0.95); }
+:root[data-theme="bsc"] .nav-btn { border-left: none; padding: 0.45rem 0.6rem; }
+:root[data-theme="bsc"] .nav-btn.active { background: var(--panel-2); color: var(--text); }
+
+/* Puffy clay surfaces: cards, columns, tasks */
+:root[data-theme="bsc"] .card,
+:root[data-theme="bsc"] .sprint-column,
+:root[data-theme="bsc"] .sprint-task,
+:root[data-theme="bsc"] .doc-view,
+:root[data-theme="bsc"] .theme-btn {
+    border-color: transparent;
+    box-shadow:
+        inset 0 2px 4px rgba(255, 255, 255, 0.7),
+        inset 0 -3px 6px rgba(0, 0, 0, 0.06),
+        0 8px 16px -10px rgba(0, 0, 0, 0.3);
+}
+/* Keep the hover underglow in this theme too (clay + brick glow together) */
+:root[data-theme="bsc"] .sprint-task:hover,
+:root[data-theme="bsc"] button.card:hover,
+:root[data-theme="bsc"] a.card:hover,
+:root[data-theme="bsc"] .theme-btn:hover {
+    box-shadow:
+        inset 0 2px 4px rgba(255, 255, 255, 0.7),
+        inset 0 -3px 6px rgba(0, 0, 0, 0.06),
+        0 12px 22px -10px var(--glow);
+}
+:root[data-theme="bsc"] .logo-dot { background: #1f1d1b; box-shadow: 0 0 0 3px #d6a73a; }

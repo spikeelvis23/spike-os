@@ -1,0 +1,63 @@
+/* =====================================================================
+   BSC theme extras: clay icon tiles in the sidebar + puffy clay surfaces
+   Everything below only applies when <html data-theme="bsc">.
+   ===================================================================== */
+
+/* Each sidebar button picks a tile color (--tile) and icon color (--ink) */
+:root[data-theme="bsc"] .nav-btn[data-tab="sprints"]  { --tile: #1f1d1b; --ink: #f1e9da; } /* black sheep */
+:root[data-theme="bsc"] .nav-btn[data-tab="projects"] { --tile: #d6a73a; --ink: #1f1d1b; } /* gold chain */
+:root[data-theme="bsc"] .nav-btn[data-tab="agents"]   { --tile: #b4462f; --ink: #f1e9da; } /* brick */
+:root[data-theme="bsc"] .nav-btn[data-tab="ideas"]    { --tile: #efe6d6; --ink: #1f1d1b; } /* wool */
+:root[data-theme="bsc"] .nav-btn[data-tab="docs"]     { --tile: #a9a49c; --ink: #1f1d1b; } /* concrete */
+:root[data-theme="bsc"] .nav-btn[data-tab="links"]    { --tile: #4a4743; --ink: #d6a73a; } /* smoke */
+:root[data-theme="bsc"] .nav-btn[data-tab="brain"]    { --tile: #1f1d1b; --ink: #d6a73a; } /* black + gold */
+:root[data-theme="bsc"] .nav-btn[data-tab="chat"]     { --tile: #b4462f; --ink: #f1e9da; } /* brick */
+
+/* The little clay tile behind each sidebar icon */
+:root[data-theme="bsc"] .nav-btn [data-icon] {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    background: var(--tile);
+    display: grid;
+    place-items: center;
+    box-shadow:
+        inset 0 2px 3px rgba(255, 255, 255, 0.35),  /* light on top */
+        inset 0 -3px 5px rgba(0, 0, 0, 0.25),       /* shade on bottom */
+        0 6px 10px -5px rgba(0, 0, 0, 0.45);        /* floor shadow */
+    transition: transform 0.15s;
+}
+:root[data-theme="bsc"] .nav-btn .icon {
+    width: 17px;
+    height: 17px;
+    color: var(--ink);
+    fill: color-mix(in srgb, var(--ink) 30%, transparent);
+}
+:root[data-theme="bsc"] .nav-btn:hover [data-icon] { transform: translateY(-2px); }
+:root[data-theme="bsc"] .nav-btn:active [data-icon] { transform: translateY(1px) scale(0.95); }
+:root[data-theme="bsc"] .nav-btn { border-left: none; padding: 0.45rem 0.6rem; }
+:root[data-theme="bsc"] .nav-btn.active { background: var(--panel-2); color: var(--text); }
+
+/* Puffy clay surfaces: cards, columns, tasks */
+:root[data-theme="bsc"] .card,
+:root[data-theme="bsc"] .sprint-column,
+:root[data-theme="bsc"] .sprint-task,
+:root[data-theme="bsc"] .doc-view,
+:root[data-theme="bsc"] .theme-btn {
+    border-color: transparent;
+    box-shadow:
+        inset 0 2px 4px rgba(255, 255, 255, 0.7),
+        inset 0 -3px 6px rgba(0, 0, 0, 0.06),
+        0 8px 16px -10px rgba(0, 0, 0, 0.3);
+}
+/* Keep the hover underglow in this theme too (clay + brick glow together) */
+:root[data-theme="bsc"] .sprint-task:hover,
+:root[data-theme="bsc"] button.card:hover,
+:root[data-theme="bsc"] a.card:hover,
+:root[data-theme="bsc"] .theme-btn:hover {
+    box-shadow:
+        inset 0 2px 4px rgba(255, 255, 255, 0.7),
+        inset 0 -3px 6px rgba(0, 0, 0, 0.06),
+        0 12px 22px -10px var(--glow);
+}
+:root[data-theme="bsc"] .logo-dot { background: #1f1d1b; box-shadow: 0 0 0 3px #d6a73a; }
