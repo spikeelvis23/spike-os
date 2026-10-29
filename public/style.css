@@ -14,6 +14,117 @@
     --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
 }
 
+/* ---------- themes: each block overrides the tokens above ---------- */
+/* "mission" is the default, so it just uses :root. */
+
+:root[data-theme="linear"] {      /* Linear: near-black, indigo, tight corners */
+    --bg: #08090a;
+    --panel: #101113;
+    --panel-2: #17181b;
+    --border: #23252a;
+    --text: #f7f8f8;
+    --muted: #8a8f98;
+    --accent: #5e6ad2;
+    --accent-ink: #ffffff;
+    --radius: 6px;
+}
+
+:root[data-theme="raycast"] {     /* Raycast: warm charcoal, coral red, soft corners */
+    --bg: #161616;
+    --panel: #1f1f1f;
+    --panel-2: #2a2a2a;
+    --border: #333333;
+    --text: #f2f2f2;
+    --muted: #9a9a9a;
+    --accent: #ff6363;
+    --accent-ink: #1a0505;
+    --radius: 14px;
+}
+
+:root[data-theme="obsidian"] {    /* Obsidian: graphite, purple, notebook feel */
+    --bg: #1e1e1e;
+    --panel: #262626;
+    --panel-2: #2f2f2f;
+    --border: #3a3a3a;
+    --text: #dcddde;
+    --muted: #999999;
+    --accent: #a882ff;
+    --accent-ink: #160a2e;
+    --radius: 4px;
+}
+
+:root[data-theme="home"] {        /* Home Assistant: light tiles, bright blue */
+    --bg: #f2f4f7;
+    --panel: #ffffff;
+    --panel-2: #f7f8fa;
+    --border: #dde1e7;
+    --text: #1f2933;
+    --muted: #6b7684;
+    --accent: #0398d6;
+    --accent-ink: #ffffff;
+    --done: #16a34a;
+    --danger: #dc2626;
+    --radius: 14px;
+}
+
+body { transition: background-color 0.2s, color 0.2s; }
+
+.theme-picker { margin-top: auto; position: relative; }
+.theme-picker + .sidebar-hint { margin-top: 0.6rem; }
+
+.theme-menu {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 0;
+    width: 230px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 4px;
+    z-index: 200;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+}
+.theme-option {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    width: 100%;
+    background: none;
+    border: none;
+    border-radius: 6px;
+    padding: 0.45rem 0.5rem;
+    text-align: left;
+    cursor: pointer;
+}
+.theme-option:hover, .theme-option:focus-visible { background: var(--border); outline: none; }
+.theme-swatch {
+    width: 30px;
+    height: 22px;
+    border-radius: 5px;
+    border: 1px solid rgba(128, 128, 128, 0.4);
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    padding: 3px;
+    flex-shrink: 0;
+}
+.theme-swatch-dot { width: 9px; height: 9px; border-radius: 50%; }
+.theme-text { display: flex; flex-direction: column; line-height: 1.25; font-size: 0.85rem; }
+.theme-text .muted { font-size: 0.75rem; }
+.theme-check { margin-left: auto; color: var(--accent); font-weight: 700; }
+
+.theme-btn {
+    width: 100%;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.55rem 0.75rem;
+    text-align: left;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+.theme-btn:hover { border-color: var(--accent); }
+
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 

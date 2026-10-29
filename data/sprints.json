@@ -4,13 +4,13 @@
     {
       "id": 1,
       "title": "Setup spike-os dashboard",
-      "status": "backlog",
+      "status": "todo",
       "project": "spike-os"
     },
     {
       "id": 2,
       "title": "Audit server.js",
-      "status": "backlog",
+      "status": "todo",
       "project": "spike-os"
     },
     {

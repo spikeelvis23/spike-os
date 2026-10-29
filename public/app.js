@@ -606,6 +606,79 @@ const showQuickActions = (node, x, y) => {
     document.body.appendChild(menu);
 };
 
+// ---------- themes ----------
+
+// Each id matches a [data-theme="..."] block in style.css.
+// bg + accent are only used to draw the little color preview in the menu.
+const THEMES = [
+    { id: 'mission', label: 'Mission', note: 'Navy + sky blue', bg: '#0b1120', accent: '#38bdf8' },
+    { id: 'linear', label: 'Linear', note: 'Black + indigo', bg: '#08090a', accent: '#5e6ad2' },
+    { id: 'raycast', label: 'Raycast', note: 'Charcoal + coral', bg: '#161616', accent: '#ff6363' },
+    { id: 'obsidian', label: 'Obsidian', note: 'Graphite + purple', bg: '#1e1e1e', accent: '#a882ff' },
+    { id: 'home', label: 'Home', note: 'Light + blue', bg: '#f2f4f7', accent: '#0398d6' },
+];
+const THEME_KEY = 'spike-os-theme';
+
+const applyTheme = (id) => {
+    const theme = THEMES.find((t) => t.id === id) || THEMES[0];
+    document.documentElement.dataset.theme = theme.id; // sets <html data-theme="linear">
+    document.getElementById('theme-btn').textContent = `🎨 Theme: ${theme.label}`;
+    try {
+        localStorage.setItem(THEME_KEY, theme.id); // remember it for next time
+    } catch {
+        // storage can be blocked (private window) — the theme still works, it just won't be remembered
+    }
+};
+
+// Builds the menu: one row per theme with a color preview. Clicking a row applies it instantly.
+const renderThemeMenu = () => {
+    const menu = document.getElementById('theme-menu');
+    const currentId = document.documentElement.dataset.theme;
+    menu.replaceChildren();
+
+    THEMES.forEach((theme) => {
+        const option = el('button', `theme-option ${theme.id === currentId ? 'active' : ''}`);
+        option.type = 'button';
+
+        const swatch = el('span', 'theme-swatch');
+        swatch.style.background = theme.bg;
+        swatch.appendChild(el('span', 'theme-swatch-dot'));
+        swatch.lastChild.style.background = theme.accent;
+
+        const text = el('span', 'theme-text');
+        text.append(el('strong', null, theme.label), el('span', 'muted', theme.note));
+
+        option.append(swatch, text);
+        if (theme.id === currentId) option.appendChild(el('span', 'theme-check', '✓'));
+
+        option.addEventListener('click', () => {
+            applyTheme(theme.id);
+            closeThemeMenu();
+        });
+        menu.appendChild(option);
+    });
+};
+
+const closeThemeMenu = () => {
+    document.getElementById('theme-menu').hidden = true;
+};
+
+const toggleThemeMenu = () => {
+    const menu = document.getElementById('theme-menu');
+    if (menu.hidden) renderThemeMenu();
+    menu.hidden = !menu.hidden;
+};
+
+const loadSavedTheme = () => {
+    let saved = null;
+    try {
+        saved = localStorage.getItem(THEME_KEY);
+    } catch {
+        // ignore — fall back to the default theme
+    }
+    applyTheme(saved);
+};
+
 // ---------- start ----------
 
 const initOS = () => {
@@ -628,6 +701,7 @@ const initOS = () => {
     document.addEventListener('click', (event) => {
         if (!event.target.closest('.quick-action-menu')) closeQuickActions();
         if (!event.target.closest('.search-container')) document.getElementById('search-results').hidden = true;
+        if (!event.target.closest('.theme-picker')) closeThemeMenu();
     });
 
     window.addEventListener('keydown', (event) => {
@@ -639,10 +713,14 @@ const initOS = () => {
             toggleCommandBar(false);
             closeNoteOverlay();
             closeQuickActions();
+            closeThemeMenu();
         }
     });
 
     window.addEventListener('resize', resizeBrain);
+
+    document.getElementById('theme-btn').addEventListener('click', toggleThemeMenu);
+    loadSavedTheme();
 
     showTab('sprints');
 };
