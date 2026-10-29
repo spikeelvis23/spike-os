@@ -86,13 +86,134 @@ const showTab = (tabId) => {
 
 // ---------- sprints ----------
 
-const renderSprints = async () => {
-    const board = document.getElementById('sprint-board');
+// Always work with the full { sprint, tasks } object so saving never loses tasks.
+const loadSprints = async () => {
     const raw = await getJson('/api/data/sprints');
-
-    // Always work with the full { sprint, tasks } object so saving never loses tasks.
     const data = Array.isArray(raw) ? { sprint: '', tasks: raw } : raw;
     if (!Array.isArray(data.tasks)) data.tasks = [];
+    return data;
+};
+
+// Send the WHOLE file back. The server replaces sprints.json with whatever we send.
+const saveSprints = (data) => postJson('/api/data/sprints', data);
+
+const nextTaskId = (tasks) => Math.max(0, ...tasks.map((t) => Number(t.id) || 0)) + 1;
+
+// Small icon-only button (✎, 🗑). stopPropagation so it doesn't also trigger the card click.
+const miniBtn = (label, title, onClick) => {
+    const btn = el('button', 'mini-btn', label);
+    btn.type = 'button';
+    btn.title = title;
+    btn.setAttribute('aria-label', title);
+    btn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        onClick();
+    });
+    return btn;
+};
+
+const deleteTask = async (data, task, onDone) => {
+    if (!confirm(`Delete "${task.title}"?`)) return;
+    data.tasks = data.tasks.filter((t) => t.id !== task.id);
+    try {
+        await saveSprints(data);
+        toast('Task deleted');
+    } catch (err) {
+        toast(`Couldn't delete: ${err.message}`);
+    }
+    onDone();
+};
+
+// Swaps a task card for a little form. Save writes the file, Cancel just redraws.
+const editTaskForm = (data, task, onDone) => {
+    const form = el('form', 'task-edit');
+
+    const title = el('input');
+    title.value = task.title;
+    title.placeholder = 'Task title';
+    title.required = true;
+
+    const project = el('input');
+    project.value = task.project || 'general';
+    project.placeholder = 'Project';
+
+    const status = el('select');
+    STATUSES.forEach((s) => {
+        const option = el('option', null, s);
+        option.value = s;
+        option.selected = s === task.status;
+        status.appendChild(option);
+    });
+
+    const save = el('button', 'task-save', 'Save');
+    save.type = 'submit';
+    const cancel = el('button', 'ghost-btn', 'Cancel');
+    cancel.type = 'button';
+    cancel.addEventListener('click', onDone);
+
+    const row = el('div', 'task-edit-row');
+    row.append(save, cancel);
+    form.append(title, project, status, row);
+
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        task.title = title.value.trim() || task.title;
+        task.project = project.value.trim() || 'general';
+        task.status = status.value;
+        save.disabled = true;
+        try {
+            await saveSprints(data);
+            toast('Task updated');
+        } catch (err) {
+            toast(`Couldn't save: ${err.message}`);
+        }
+        onDone();
+    });
+
+    // Esc inside the form cancels just this edit.
+    form.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            event.stopPropagation();
+            onDone();
+        }
+    });
+
+    setTimeout(() => title.focus(), 0);
+    return form;
+};
+
+// One task card: click the body to move it on, ✎ to edit, 🗑 to delete.
+const taskCard = (data, task, onChange) => {
+    const card = el('div', 'sprint-task');
+
+    const main = el('button', 'task-main');
+    main.type = 'button';
+    main.title = 'Move to next column';
+    main.append(el('span', 'task-project', task.project || 'general'), el('span', 'task-title', task.title));
+    main.addEventListener('click', async () => {
+        task.status = STATUSES[(STATUSES.indexOf(task.status) + 1) % STATUSES.length];
+        main.disabled = true;
+        try {
+            await saveSprints(data);
+        } catch (err) {
+            console.error('Failed to update task:', err);
+        }
+        onChange();
+    });
+
+    const actions = el('div', 'task-actions');
+    actions.append(
+        miniBtn('✎', 'Edit task', () => card.replaceWith(editTaskForm(data, task, onChange))),
+        miniBtn('🗑', 'Delete task', () => deleteTask(data, task, onChange)),
+    );
+
+    card.append(main, actions);
+    return card;
+};
+
+const renderSprints = async () => {
+    const board = document.getElementById('sprint-board');
+    const data = await loadSprints();
 
     document.getElementById('sprint-name').textContent = data.sprint || '';
     board.replaceChildren();
@@ -105,26 +226,7 @@ const renderSprints = async () => {
         head.append(el('span', null, status), el('span', 'count', tasks.length));
         column.appendChild(head);
 
-        tasks.forEach((task) => {
-            const card = el('button', 'sprint-task');
-            card.type = 'button';
-            card.append(el('span', 'task-project', task.project || 'general'), el('span', 'task-title', task.title));
-
-            card.addEventListener('click', async () => {
-                const next = STATUSES[(STATUSES.indexOf(task.status) + 1) % STATUSES.length];
-                task.status = next;
-                card.disabled = true;
-                try {
-                    // Send the WHOLE file back. The server replaces sprints.json with whatever we send.
-                    await postJson('/api/data/sprints', data);
-                } catch (err) {
-                    console.error('Failed to update task:', err);
-                }
-                renderSprints();
-            });
-
-            column.appendChild(card);
-        });
+        tasks.forEach((task) => column.appendChild(taskCard(data, task, renderSprints)));
 
         if (tasks.length === 0) column.appendChild(el('p', 'column-empty', '—'));
         board.appendChild(column);
@@ -141,14 +243,67 @@ const renderAgents = async () => {
     container.replaceChildren();
     agents.forEach((agent) => {
         const card = el('article', 'card agent-card');
-        card.append(
-            el('div', 'agent-icon', agent.icon || '🤖'),
-            el('h3', null, agent.name),
-            el('p', 'muted', agent.role),
-            el('span', `badge ${agent.status === 'active' ? 'active' : ''}`, agent.status || 'idle'),
-        );
+        const badge = el('span', `badge ${agent.status === 'active' ? 'active' : ''}`, agent.status || 'idle');
+
+        // "Run Agent": type a job, press Run, and the answer appears under the card.
+        const form = el('form', 'agent-run');
+        const input = el('input');
+        input.placeholder = `Give ${agent.name} a job…`;
+        input.autocomplete = 'off';
+        const runBtn = el('button', null, 'Run');
+        runBtn.type = 'submit';
+        form.append(input, runBtn);
+
+        const output = el('div', 'agent-output');
+        output.hidden = true;
+
+        form.addEventListener('submit', (event) => {
+            event.preventDefault();
+            runAgent(agent, input.value, { input, runBtn, badge, output });
+        });
+
+        card.append(el('div', 'agent-icon', agent.icon || '🤖'), el('h3', null, agent.name), el('p', 'muted', agent.role), badge, form, output);
         container.appendChild(card);
     });
+};
+
+// Sends the job to /api/run-agent and shows the reply. `ui` holds the card's
+// elements; it's optional so Ctrl+K can run an agent without the card on screen.
+const runAgent = async (agent, task, ui = {}) => {
+    const job = task.trim();
+    if (!job) return toast(`Give ${agent.name} a job first`);
+
+    const { input, runBtn, badge, output } = ui;
+    if (runBtn) runBtn.disabled = true;
+    if (badge) {
+        badge.textContent = 'running…';
+        badge.className = 'badge running';
+    }
+    if (output) {
+        output.hidden = false;
+        output.classList.remove('error');
+        output.textContent = `${agent.name} is working on it… (can take a minute)`;
+    }
+
+    try {
+        const { answer } = await postJson('/api/run-agent', { id: agent.id, task: job });
+        if (output) output.textContent = answer;
+        if (input) input.value = '';
+        toast(`${agent.name} finished`);
+        return answer;
+    } catch (err) {
+        if (output) {
+            output.textContent = err.message;
+            output.classList.add('error');
+        }
+        toast(`${agent.name} hit a problem`);
+    } finally {
+        if (runBtn) runBtn.disabled = false;
+        if (badge) {
+            badge.textContent = agent.status || 'idle';
+            badge.className = `badge ${agent.status === 'active' ? 'active' : ''}`;
+        }
+    }
 };
 
 // ---------- links ----------
@@ -261,12 +416,9 @@ const COMMANDS = [
         run: async (rest) => {
             const { text, tag } = splitTag(rest);
             if (!text) return toast('Type a task title after "task"');
-            const data = await getJson('/api/data/sprints');
-            const sprint = Array.isArray(data) ? { sprint: '', tasks: data } : data;
-            sprint.tasks = sprint.tasks || [];
-            const nextId = Math.max(0, ...sprint.tasks.map((t) => Number(t.id) || 0)) + 1;
-            sprint.tasks.push({ id: nextId, title: text, status: 'todo', project: tag || 'general' });
-            await postJson('/api/data/sprints', sprint); // whole file, as always
+            const sprint = await loadSprints();
+            sprint.tasks.push({ id: nextTaskId(sprint.tasks), title: text, status: 'todo', project: tag || 'general' });
+            await saveSprints(sprint); // whole file, as always
             toast(`Task added to ${tag || 'general'}`);
             showTab('sprints');
         },
@@ -285,6 +437,25 @@ const COMMANDS = [
             await postJson('/api/data/ideas', Array.isArray(data) ? ideas : { ...data, ideas });
             toast('Idea saved');
             showTab('ideas');
+        },
+    },
+    {
+        word: 'agent',
+        help: 'agent <name> <job> — run an agent (answer shows in Chat)',
+        run: async (rest) => {
+            const [name, ...jobWords] = rest.split(' ');
+            const agents = asList(await getJson('/api/data/agents'), 'agents');
+            const agent = agents.find((a) => a.name.toLowerCase().startsWith((name || '').toLowerCase()));
+            if (!name || !agent) return toast(`Agents: ${agents.map((a) => a.name).join(', ')}`);
+            const job = jobWords.join(' ').trim();
+            if (!job) return toast(`Type a job after "agent ${agent.name.toLowerCase()}"`);
+
+            showTab('chat');
+            addChatMessage('user', `${agent.icon || '🤖'} ${agent.name}: ${job}`);
+            const reply = addChatMessage('os', `${agent.name} is working on it…`);
+            const answer = await runAgent(agent, job);
+            reply.textContent = answer || `${agent.name} couldn't finish that. Is the server running and Claude Code installed?`;
+            if (!answer) reply.classList.add('error');
         },
     },
     {
@@ -762,6 +933,28 @@ const mountIcons = () => {
     });
 };
 
+// ---------- clock (sidebar) ----------
+// Uses your computer's own time + language settings, so it shows local time.
+
+const tickClock = () => {
+    const now = new Date();
+    document.getElementById('clock-time').textContent = now.toLocaleTimeString([], {
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+    });
+    document.getElementById('clock-date').textContent = now.toLocaleDateString([], {
+        weekday: 'short', day: 'numeric', month: 'short',
+    });
+};
+
+const startClock = () => {
+    tickClock();
+    // Wait until the next whole second, then tick every second, so it never lags behind.
+    setTimeout(() => {
+        tickClock();
+        setInterval(tickClock, 1000);
+    }, 1000 - (Date.now() % 1000));
+};
+
 // ---------- toast (small pop-up message) ----------
 
 const toast = (message) => {
@@ -815,28 +1008,67 @@ const renderProjects = async () => {
         bar.appendChild(fill);
 
         card.append(head, el('p', 'muted', `${list.length} tasks · ${done} done · ${percent}%`), bar);
-        card.addEventListener('click', () => openProject(name, list));
+        card.addEventListener('click', () => openProject(name));
         grid.appendChild(card);
     });
     view.replaceChildren(grid);
 };
 
-const openProject = async (name, tasks) => {
+// Opens one project folder. Reloads from disk each time, so edits show up straight away.
+const openProject = async (name) => {
     const view = document.getElementById('projects-view');
     document.getElementById('projects-title').textContent = name;
     document.getElementById('projects-back').hidden = false;
     document.getElementById('projects-hint').hidden = true;
 
+    const data = await loadSprints();
+    const tasks = data.tasks.filter((t) => (t.project || 'general') === name);
+    const refresh = () => openProject(name);
+
+    // Folder toolbar: add a task here, or rename the whole project.
+    const tools = el('div', 'project-tools');
+
+    const addForm = el('form', 'agent-run');
+    const addInput = el('input');
+    addInput.placeholder = `New task in ${name}…`;
+    const addBtn = el('button', null, 'Add');
+    addBtn.type = 'submit';
+    addForm.append(addInput, addBtn);
+    addForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const title = addInput.value.trim();
+        if (!title) return;
+        data.tasks.push({ id: nextTaskId(data.tasks), title, status: 'todo', project: name });
+        await saveSprints(data);
+        toast('Task added');
+        refresh();
+    });
+
+    // Renaming = change the "project" on every task in it. The folder follows.
+    const renameBtn = el('button', 'ghost-btn', 'Rename project');
+    renameBtn.type = 'button';
+    renameBtn.addEventListener('click', async () => {
+        const newName = prompt('New project name:', name)?.trim();
+        if (!newName || newName === name) return;
+        tasks.forEach((t) => (t.project = newName));
+        await saveSprints(data);
+        toast(`Renamed to ${newName}`);
+        openProject(newName);
+    });
+
+    tools.append(addForm, renameBtn);
+
     const columns = el('div', 'project-columns');
 
-    // Left: this project's tasks, grouped by status
+    // Left: this project's tasks, grouped by status (same cards as the sprint board)
     const taskBox = el('div', 'card');
     taskBox.appendChild(el('h3', null, 'Tasks'));
+    if (tasks.length === 0) taskBox.appendChild(el('p', 'muted', 'No tasks left in this project.'));
     STATUSES.forEach((status) => {
         const inStatus = tasks.filter((t) => t.status === status);
         if (inStatus.length === 0) return;
         taskBox.appendChild(el('p', 'status-label', status));
-        inStatus.forEach((t) => taskBox.appendChild(el('div', 'project-task', t.title)));
+        inStatus.forEach((t) => taskBox.appendChild(taskCard(data, t, refresh)));
     });
 
     // Right: notes in the vault tagged with this project, e.g. #directplate
@@ -853,7 +1085,7 @@ const openProject = async (name, tasks) => {
     });
 
     columns.append(taskBox, noteBox);
-    view.replaceChildren(columns);
+    view.replaceChildren(tools, columns);
 };
 
 // ---------- docs (markdown files in /docs) ----------
@@ -1039,6 +1271,7 @@ const loadSavedTheme = () => {
 
 const initOS = () => {
     mountIcons();
+    startClock();
 
     // Enter in the quick launch box runs the top result.
     document.getElementById('command-input').addEventListener('keydown', async (event) => {

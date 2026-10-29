@@ -27,6 +27,12 @@
     <nav class="sidebar">
         <div class="logo"><span class="logo-dot"></span>spike-os</div>
 
+        <!-- Live clock: app.js updates it every second -->
+        <div class="clock" aria-live="off">
+            <span id="clock-time" class="clock-time">--:--:--</span>
+            <span id="clock-date" class="clock-date"></span>
+        </div>
+
         <div class="search-container">
             <span class="search-icon" data-icon="search"></span>
             <input type="text" id="global-search" placeholder="Search brain (#tags…)" autocomplete="off">
@@ -59,7 +65,7 @@
                 <h1>Sprint Board</h1>
                 <p id="sprint-name" class="page-sub"></p>
             </header>
-            <p class="hint">Click a task to move it to the next column.</p>
+            <p class="hint">Click a task to move it to the next column. Use ✎ to edit or 🗑 to delete.</p>
             <div id="sprint-board" class="sprint-board"></div>
         </section>
 
@@ -74,6 +80,7 @@
 
         <section id="agents" class="tab-content">
             <header class="page-head"><h1>Agent Team</h1></header>
+            <p class="hint">Give an agent a job and press Run — it runs Claude Code on your laptop in that agent's role. Or Ctrl+K → <code>agent hype write 3 captions</code></p>
             <div id="agent-list" class="grid"></div>
         </section>
 

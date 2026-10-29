@@ -320,6 +320,27 @@ kbd {
 .mono { font-family: var(--mono); font-size: 0.8rem; }
 .empty { color: var(--muted); font-style: italic; }
 
+/* ---------- sidebar clock ---------- */
+.clock {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0.6rem 0.75rem;
+    margin-bottom: 1rem;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+.clock-time {
+    font-family: var(--mono);
+    font-size: 1.35rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums; /* every digit same width, so it doesn't wobble */
+}
+.clock-date { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+
 /* ---------- sidebar ---------- */
 .sidebar {
     width: 240px;
@@ -470,29 +491,91 @@ kbd {
 }
 .column-empty { color: var(--border); text-align: center; margin: 1rem 0; }
 
+/* A task card is a box holding: the clickable body (.task-main) + ✎/🗑 buttons */
 .sprint-task {
+    display: flex;
+    align-items: flex-start;
+    width: 100%;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 0.6rem;
+    transition: transform 0.1s, border-color 0.15s;
+}
+.sprint-task:hover, .sprint-task:focus-within {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+}
+.task-main {
+    flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 2px;
-    width: 100%;
     text-align: left;
-    background: var(--panel-2);
-    border: 1px solid var(--border);
-    padding: 0.7rem 0.8rem;
-    border-radius: 8px;
-    margin-bottom: 0.6rem;
+    background: none;
+    border: none;
+    color: inherit;
+    font: inherit;
+    padding: 0.7rem 0 0.7rem 0.8rem;
     cursor: pointer;
-    transition: transform 0.1s, border-color 0.15s;
+    overflow-wrap: anywhere;
 }
-.sprint-task:hover, .sprint-task:focus-visible {
-    border-color: var(--accent);
-    transform: translateY(-1px);
-    outline: none;
+.task-main:focus-visible { outline: none; }
+.task-main:disabled { opacity: 0.5; cursor: wait; }
+
+/* Edit + delete only show on hover/focus so the board stays calm. Always visible on touch screens. */
+.task-actions { display: flex; gap: 2px; padding: 0.4rem 0.4rem 0 0; opacity: 0; transition: opacity 0.15s; }
+.sprint-task:hover .task-actions, .sprint-task:focus-within .task-actions { opacity: 1; }
+@media (hover: none) { .task-actions { opacity: 1; } }
+.mini-btn {
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 0.85rem;
+    line-height: 1;
+    padding: 0.3rem 0.35rem;
 }
-.sprint-task:disabled { opacity: 0.5; cursor: wait; }
+.mini-btn:hover, .mini-btn:focus-visible { color: var(--text); border-color: var(--border); background: var(--panel); outline: none; }
+
+/* Inline edit form that replaces a card while you edit it */
+.task-edit {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    background: var(--panel-2);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 0.6rem;
+    margin-bottom: 0.6rem;
+}
+.task-edit input, .task-edit select {
+    width: 100%;
+    padding: 0.45rem 0.55rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.88rem;
+}
+.task-edit input:focus, .task-edit select:focus { outline: none; border-color: var(--accent); }
+.task-edit-row { display: flex; gap: 0.4rem; }
+.task-save {
+    padding: 0.4rem 0.9rem;
+    background: var(--accent);
+    color: var(--accent-ink);
+    border: none;
+    border-radius: 6px;
+    font-weight: 700;
+    cursor: pointer;
+}
 .task-project { font-family: var(--mono); font-size: 0.7rem; color: var(--accent); }
 .task-title { font-size: 0.92rem; }
 .sprint-column.done .sprint-task { opacity: 0.6; }
+.sprint-column.done .sprint-task:hover, .sprint-column.done .sprint-task:focus-within { opacity: 1; }
 .sprint-column.done .task-title { text-decoration: line-through; }
 
 /* ---------- cards (agents, links, ideas) ---------- */
@@ -520,6 +603,51 @@ kbd {
     color: var(--muted);
 }
 .badge.active { color: var(--done); border-color: var(--done); }
+.badge.running { color: var(--accent); border-color: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.45; } }
+
+/* Run Agent box on each agent card (also reused for "add task" in project folders) */
+.agent-card { display: flex; flex-direction: column; align-items: flex-start; }
+.agent-run { display: flex; gap: 0.4rem; width: 100%; margin-top: 0.9rem; }
+.agent-run input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.5rem 0.65rem;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.88rem;
+}
+.agent-run input:focus { outline: none; border-color: var(--accent); }
+.agent-run button {
+    padding: 0.5rem 0.9rem;
+    background: var(--accent);
+    color: var(--accent-ink);
+    border: none;
+    border-radius: 8px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.agent-run button:disabled { opacity: 0.5; cursor: wait; }
+.agent-output {
+    width: 100%;
+    margin-top: 0.75rem;
+    padding: 0.6rem 0.75rem;
+    max-height: 260px;
+    overflow-y: auto;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.agent-output.error { border-color: var(--danger); color: var(--danger); }
+
+.project-tools { display: flex; align-items: center; gap: 0.75rem; margin-top: 1rem; flex-wrap: wrap; }
+.project-tools .agent-run { flex: 1; min-width: 220px; margin-top: 0; }
 
 .link-card {
     display: flex;
@@ -789,6 +917,7 @@ kbd {
     .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
     .nav-links { flex-direction: row; flex-wrap: wrap; }
     .sidebar-hint { display: none; }
+    .clock { flex-direction: row; align-items: baseline; justify-content: space-between; }
     .content { padding: 1.25rem 1rem; }
     .sprint-board { grid-template-columns: 1fr; }
     .search-results { width: 100%; }

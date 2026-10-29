@@ -219,6 +219,30 @@ const handleApi = async (req, res, url) => {
     }
   }
 
+  // POST /api/run-agent  { id: 2, task: "..." }  → Claude answers *as* that agent
+  // The agent's name + role from agents.json become the start of the prompt,
+  // so each agent behaves like a specialist instead of a general chatbot.
+  if (parts[1] === 'run-agent' && req.method === 'POST') {
+    const { id, task } = JSON.parse(await readBody(req));
+    if (!task || !task.trim()) return sendJson(res, 400, { error: 'Give the agent a task first' });
+
+    const raw = JSON.parse(await fs.readFile(path.join(DATA_DIR, 'agents.json'), 'utf8'));
+    const agents = Array.isArray(raw) ? raw : raw.agents || [];
+    const agent = agents.find((a) => String(a.id) === String(id));
+    if (!agent) return sendJson(res, 404, { error: `No agent with id ${id}` });
+
+    const prompt = [
+      `You are ${agent.name}, the "${agent.role}" agent on Spike's spike-os team.`,
+      'Stay in that role. Read CLAUDE.md and any files you need in this folder.',
+      'Keep the answer short and practical.',
+      '',
+      `Task: ${task.trim()}`,
+    ].join('\n');
+
+    const answer = await askClaude(prompt);
+    return sendJson(res, 200, { agent: agent.name, answer });
+  }
+
   // POST /api/ask  { prompt: "..." }  → Claude's answer
   if (parts[1] === 'ask' && req.method === 'POST') {
     const { prompt } = JSON.parse(await readBody(req));
